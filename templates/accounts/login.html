@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Log in | Den{% endblock %}
+{% block content %}
+<section class="form-page">
+    <div class="form-card">
+        <p class="eyebrow">Welcome back</p>
+        <h1>Log in to Den</h1>
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            {% for field in form %}
+                <div class="field{% if field.errors %} has-error{% endif %}">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    {% for error in field.errors %}<p class="error">{{ error }}</p>{% endfor %}
+                </div>
+            {% endfor %}
+            <button class="button button-primary button-full" type="submit">Log in</button>
+        </form>
+        <p class="form-footer">New to Den? <a href="{% url 'accounts:register' %}">Create an account</a></p>
+    </div>
+</section>
+{% endblock %}

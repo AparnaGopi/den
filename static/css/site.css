@@ -1,0 +1,55 @@
+:root {
+    --ink: #252422;
+    --muted: #706d67;
+    --paper: #f5f1e9;
+    --cream: #fbfaf7;
+    --terracotta: #bd6046;
+    --line: #ddd6ca;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: Georgia, 'Times New Roman', serif; }
+a { color: inherit; }
+.navbar { border-bottom: 1px solid var(--line); background: rgba(251, 250, 247, .86); }
+.nav-inner { max-width: 1180px; margin: auto; padding: 22px 32px; display: flex; align-items: center; justify-content: space-between; }
+.brand { font-size: 2rem; font-weight: bold; text-decoration: none; letter-spacing: -.08em; }
+.brand span { color: var(--terracotta); }
+.nav-links { display: flex; align-items: center; gap: 26px; font-family: Arial, sans-serif; font-size: .85rem; }
+.nav-links a { text-decoration: none; }
+.nav-signup { border-bottom: 1px solid var(--ink); padding-bottom: 4px; }
+.link-button { border: 0; background: none; color: var(--ink); cursor: pointer; font: inherit; padding: 0; }
+.hero { max-width: 1180px; min-height: calc(100vh - 81px); margin: auto; padding: 10vh 32px 12vh; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); align-items: center; gap: 8vw; }
+.eyebrow { color: var(--terracotta); font: 700 .72rem/1.2 Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+h1 { max-width: 680px; margin: 18px 0; font-size: clamp(3.4rem, 7vw, 6.7rem); font-weight: normal; line-height: .93; letter-spacing: -.06em; }
+.hero-text { max-width: 430px; color: var(--muted); font-size: 1.15rem; line-height: 1.5; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+.button { display: inline-block; border: 1px solid var(--ink); padding: 15px 22px; font: 700 .78rem Arial, sans-serif; text-decoration: none; cursor: pointer; }
+.button-primary { background: var(--ink); color: var(--cream); }
+.button-primary:hover { background: var(--terracotta); border-color: var(--terracotta); }
+.button-secondary { background: transparent; }
+.hero-mark { aspect-ratio: 1; border: 1px solid var(--terracotta); border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--terracotta); transform: rotate(-8deg); }
+.hero-mark span { font-size: clamp(4rem, 10vw, 8rem); letter-spacing: -.1em; }
+.hero-mark small { font: .7rem Arial, sans-serif; letter-spacing: .15em; text-transform: uppercase; }
+.messages { max-width: 1180px; margin: 20px auto 0; padding: 0 32px; font: .85rem Arial, sans-serif; }
+.message { border-left: 3px solid var(--terracotta); padding: 10px 14px; background: var(--cream); }
+.form-page, .dashboard-page { max-width: 680px; margin: auto; padding: 9vh 32px; }
+.form-card { max-width: 480px; margin: auto; }
+.form-card h1, .dashboard-page h1 { font-size: clamp(3rem, 8vw, 5.5rem); }
+.form-intro, .dashboard-intro { color: var(--muted); font-size: 1.05rem; line-height: 1.5; }
+.auth-form { margin-top: 34px; }
+.field { margin-bottom: 21px; font: .8rem Arial, sans-serif; }
+.field label { display: block; margin-bottom: 8px; font-weight: 700; }
+.field input, .field select { width: 100%; border: 1px solid var(--line); border-radius: 0; background: var(--cream); padding: 13px; color: var(--ink); font: 1rem Georgia, serif; }
+.field ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 18px; }
+.field li { display: flex; align-items: center; gap: 6px; }
+.field li input { width: auto; }
+.button-full { width: 100%; }
+.error { color: #9a382d; margin: 7px 0 0; }
+.help-text { color: var(--muted); font-size: .72rem; line-height: 1.4; }
+.form-footer { margin-top: 28px; color: var(--muted); font: .8rem Arial, sans-serif; }
+.form-footer a { color: var(--ink); font-weight: 700; }
+.empty-state { border-top: 1px solid var(--line); margin-top: 60px; padding-top: 30px; }
+.empty-icon { color: var(--terracotta); font-size: 2rem; }
+.empty-state h2 { font-size: 2rem; font-weight: normal; margin: 8px 0; }
+.empty-state p { color: var(--muted); }
+@media (max-width: 700px) { .nav-inner { padding: 18px 20px; } .nav-links { gap: 14px; } .hero { min-height: auto; padding: 12vh 20px; display: block; } .hero-mark { max-width: 290px; margin: 70px auto 0; } .form-page, .dashboard-page { padding: 10vh 20px; } }

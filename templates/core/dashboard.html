@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ dashboard_type }} dashboard | Den{% endblock %}
+{% block content %}
+<section class="dashboard-page">
+    <p class="eyebrow">Your Den</p>
+    <h1>{{ dashboard_type }} dashboard</h1>
+    <p class="dashboard-intro">Welcome, {{ user.email }}. Your Den is ready for the next part of your event story.</p>
+    <div class="empty-state"><span class="empty-icon">+</span><h2>More to come</h2><p>Your planning tools will live here soon.</p></div>
+</section>
+{% endblock %}
