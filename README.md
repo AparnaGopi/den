@@ -1,3 +1,111 @@
+# Den
+
+Den is an event-planning platform with a shared Django REST API, a Django web portal for vendors and service providers, and a React Native Expo app planned for customers and event hosts.
+
+The current milestone includes the Django web authentication flow and the versioned API authentication foundation. Listings, mood boards, payments, messaging, and the Expo app are not implemented yet.
+
+## Local setup
+
+1. Create and activate a virtual environment:
+
+	```powershell
+	python -m venv .venv
+	.\.venv\Scripts\Activate.ps1
+	```
+
+2. Install Python dependencies:
+
+	```powershell
+	python -m pip install -r requirements.txt
+	```
+
+3. Apply migrations:
+
+	```powershell
+	python manage.py migrate
+	```
+
+4. Create an admin account when needed:
+
+	```powershell
+	python manage.py createsuperuser
+	```
+
+5. Run the Django server:
+
+	```powershell
+	python manage.py runserver
+	```
+
+Run the complete test suite with:
+
+```powershell
+python manage.py test
+```
+
+## API v1
+
+The API is available under `/api/v1/`. Registration returns the created user and JWT access and refresh tokens. The public registration endpoints accept only the role assigned to that endpoint; administrator accounts can only be created through Django Admin.
+
+### Endpoints
+
+| Method | Endpoint | Authentication | Purpose |
+| --- | --- | --- | --- |
+| POST | `/api/v1/auth/register/customer/` | None | Register a customer |
+| POST | `/api/v1/auth/register/vendor/` | None | Register a vendor |
+| POST | `/api/v1/auth/login/` | None | Create access and refresh tokens |
+| POST | `/api/v1/auth/token/refresh/` | None | Exchange a refresh token for an access token |
+| GET | `/api/v1/auth/me/` | Bearer access token | Return the current user |
+
+### Register
+
+```http
+POST /api/v1/auth/register/customer/
+Content-Type: application/json
+
+{
+  "email": "host@example.com",
+  "password": "a-strong-password-123",
+  "first_name": "Alex",
+  "last_name": "Host",
+  "role": "customer"
+}
+```
+
+Use the same payload with `"role": "vendor"` at the vendor registration endpoint. A role mismatch or `"role": "admin"` returns HTTP 400 with a field-level `role` error.
+
+### Login
+
+```http
+POST /api/v1/auth/login/
+Content-Type: application/json
+
+{
+  "email": "host@example.com",
+  "password": "a-strong-password-123"
+}
+```
+
+Use the returned access token on protected requests:
+
+```http
+GET /api/v1/auth/me/
+Authorization: Bearer <access-token>
+```
+
+Successful user responses contain only the public identity fields needed by clients:
+
+```json
+{
+  "id": 1,
+  "email": "host@example.com",
+  "first_name": "Alex",
+  "last_name": "Host",
+  "role": "customer"
+}
+```
+
+In development, CORS is open because `DEBUG` is enabled. Restrict `CORS_ALLOW_ALL_ORIGINS` to an explicit allowlist before production deployment.
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
