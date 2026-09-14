@@ -103,7 +103,16 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "localhost",
+    "10.0.0.6",
+]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "http://10.0.0.6:8081",
+]
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
 

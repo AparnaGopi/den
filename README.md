@@ -1,3 +1,4 @@
+Copyright © 2026 Aparna Gopi. All rights reserved.
 # Den
 
 Den is an event-planning platform with a shared Django REST API, a Django web portal for vendors and service providers, and a React Native Expo app planned for customers and event hosts.
