@@ -1,10 +1,11 @@
 from django.urls import path
 from .views import (
-    CategoryListView, EventArchiveView, EventCompleteView, EventDetailView,
+    EventReviewView, CategoryListView, EventArchiveView, EventCompleteView, EventDetailView,
     EventListCreateView, EventMatchesView, EventSavedVendorView, EventStepView, VendorBasicProfileView,
 )
 
 urlpatterns = [
+    path("events/<int:pk>/vendors/<int:vendor_id>/reviews/", EventReviewView.as_view(), name="event-review"),
     path("vendor/profile/", VendorBasicProfileView.as_view(), name="vendor-basic-profile"),
     path("categories/", CategoryListView.as_view(), name="categories"),
     path("events/", EventListCreateView.as_view(), name="event-list"),

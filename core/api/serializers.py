@@ -86,6 +86,7 @@ class EventRequestSerializer(serializers.ModelSerializer):
 
 
 class MatchFilterSerializer(serializers.Serializer):
+    rating_min = serializers.DecimalField(max_digits=2, decimal_places=1, min_value=0, max_value=5, required=False)
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.filter(is_active=True), required=False)
     service = serializers.ChoiceField(choices=EventRequest.HelpType.choices, required=False)
     listing_type = serializers.ChoiceField(choices=Listing.ListingType.choices, required=False)
@@ -135,3 +136,8 @@ class VendorBasicProfileSerializer(serializers.ModelSerializer):
             instance.slug = slug
             instance.save(update_fields=("slug", "updated_at"))
         return instance
+
+
+class ReviewSubmissionSerializer(serializers.Serializer):
+    rating = serializers.IntegerField(min_value=1, max_value=5)
+    comment = serializers.CharField(max_length=2000)

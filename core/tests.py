@@ -43,7 +43,7 @@ class VendorStorefrontTests(TestCase):
 
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "Gather Studio")
-		self.assertContains(response, "Reviews will follow real bookings.")
+		self.assertContains(response, "No verified reviews yet.")
 
 	def test_unapproved_profile_is_hidden(self):
 		self.profile.approval_status = VendorProfile.ApprovalStatus.PENDING

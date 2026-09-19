@@ -1,7 +1,7 @@
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Image, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChoiceChip, ErrorNotice, Loading, discoveryStyles } from '@/components/discovery-ui';
 import { Button } from '@/components/ui/button';
@@ -41,10 +41,15 @@ export default function VendorHomeScreen() {
   }, [load, router, status, user?.role]));
   function update<K extends keyof Form>(key: K, value: Form[K]) { setForm((old) => old ? { ...old, [key]: value } : old); }
   async function chooseImage() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) { setError('Photo-library permission is needed to choose a profile image.'); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.85 });
-    if (!result.canceled) setImage(result.assets[0]);
+    setError(null);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.85 });
+      if (!result.canceled) {
+        const selected = result.assets[0];
+        if (selected.fileSize && selected.fileSize > 5 * 1024 * 1024) throw new Error('Choose an image smaller than 5 MB.');
+        setImage(selected);
+      }
+    } catch (cause) { setError(requestError(cause)); }
   }
   async function save() {
     if (!form) return;
@@ -54,7 +59,14 @@ export default function VendorHomeScreen() {
       body.append('business_name', form.business_name.trim()); body.append('phone', form.phone.trim()); body.append('city', form.city.trim());
       body.append('service_area', form.service_area.trim()); body.append('short_description', form.short_description.trim());
       if (form.category) body.append('category', String(form.category));
-      if (image) body.append('profile_image', { uri: image.uri, name: image.fileName || 'profile.jpg', type: image.mimeType || 'image/jpeg' } as unknown as Blob);
+      if (image) {
+        if (Platform.OS === 'web') {
+          const blob = image.file ?? await (await fetch(image.uri)).blob();
+          body.append('profile_image', blob, image.fileName || 'profile.jpg');
+        } else {
+          body.append('profile_image', { uri: image.uri, name: image.fileName || 'profile.jpg', type: image.mimeType || 'image/jpeg' } as unknown as Blob);
+        }
+      }
       const saved = await authenticatedRequest<VendorProfile>('/vendor/profile/', { method: 'PATCH', body });
       setProfile(saved); setForm({ business_name: saved.business_name, category: saved.category, phone: saved.phone, city: saved.city, service_area: saved.service_area, short_description: saved.short_description }); setImage(null);
     } catch (cause) { setError(requestError(cause)); } finally { setSaving(false); }

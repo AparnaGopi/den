@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Category, Listing, PortfolioEntry, VendorProfile
+from .models import Category, Listing, PortfolioEntry, Review, VendorProfile
 
 
 @admin.register(Category)
@@ -44,3 +44,13 @@ class ListingAdmin(admin.ModelAdmin):
 	list_display = ("title", "profile", "listing_type", "pricing_type", "is_active")
 	list_filter = ("listing_type", "pricing_type", "is_active")
 	search_fields = ("title", "category", "profile__business_name")
+
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ("vendor", "event", "rating", "is_verified", "created_at")
+    list_filter = ("is_verified",)
+    readonly_fields = ("event", "vendor", "rating", "comment", "created_at")
+
+    def has_add_permission(self, request):
+        return False

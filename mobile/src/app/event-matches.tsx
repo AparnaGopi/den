@@ -7,10 +7,10 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/auth-context';
 import { eventTitle, helpTypes, requestError, type Category, type EventRequest, type MatchPage, type VendorMatch } from '@/types/events';
 
-type Filters = { category: string; service: string; listing_type: string; location: string; price_min: string; price_max: string };
-const blank: Filters = { category: '', service: '', listing_type: '', location: '', price_min: '', price_max: '' };
+type Filters = { category: string; service: string; listing_type: string; location: string; price_min: string; price_max: string; rating_min: string };
+const blank: Filters = { category: '', service: '', listing_type: '', location: '', price_min: '', price_max: '', rating_min: '' };
 const listingTypes = [['SERVICE', 'Services'], ['PACKAGE', 'Packages'], ['RENTAL', 'Rentals'], ['PRODUCT', 'Products']] as const;
-const sorts = [['relevance', 'Best match'], ['price', 'Price'], ['newest', 'Newest'], ['rating', 'Rating (coming later)']] as const;
+const sorts = [['relevance', 'Best match'], ['price', 'Price'], ['newest', 'Newest'], ['rating', 'Verified rating']] as const;
 
 export default function EventMatchesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -62,6 +62,7 @@ export default function EventMatchesScreen() {
       <View style={s.chips}><ChoiceChip label="All requested categories" selected={!inputs.category} onPress={() => setInput('category', '')} />{categories.map((item) => <ChoiceChip key={item.id} label={item.name} selected={inputs.category === String(item.id)} onPress={() => setInput('category', String(item.id))} />)}</View>
       <Text style={s.body}>Service</Text><View style={s.chips}><ChoiceChip label="All services" selected={!inputs.service} onPress={() => setInput('service', '')} />{helpTypes.map((item) => <ChoiceChip key={item.value} label={item.label} selected={inputs.service === item.value} onPress={() => setInput('service', item.value)} />)}</View>
       <Text style={s.body}>Listing type</Text><View style={s.chips}><ChoiceChip label="All types" selected={!inputs.listing_type} onPress={() => setInput('listing_type', '')} />{listingTypes.map(([value, label]) => <ChoiceChip key={value} label={label} selected={inputs.listing_type === value} onPress={() => setInput('listing_type', value)} />)}</View>
+      <Text style={s.body}>Minimum verified rating</Text><View style={s.chips}>{[['', 'Any rating'], ['3', '3+'], ['4', '4+'], ['5', '5']].map(([value, label]) => <ChoiceChip key={value} label={label} selected={inputs.rating_min === value} onPress={() => setInput('rating_min', value)} />)}</View>
       <Input label="Service location" value={inputs.location} onChangeText={(value) => setInput('location', value)} placeholder="City or listed service area" maxLength={100} />
       <Input label="Minimum published listing price ($)" keyboardType="decimal-pad" value={inputs.price_min} onChangeText={(value) => setInput('price_min', value)} />
       <Input label="Maximum published listing price ($)" keyboardType="decimal-pad" value={inputs.price_max} onChangeText={(value) => setInput('price_max', value)} />
@@ -69,14 +70,15 @@ export default function EventMatchesScreen() {
       <Text style={s.body}>Approval status: Approved. Private vendor profiles are never included.</Text>
       <Button label="Apply filters" disabled={loading} onPress={() => { setFilters({ ...inputs }); setShowFilters(false); }} /><Button label="Reset filters" variant="secondary" disabled={loading} onPress={reset} />
     </View>}
-    <Text style={s.heading}>Sort by</Text><View style={s.chips}>{sorts.map(([value, label]) => <ChoiceChip key={value} label={label} selected={sort === value} disabled={loading || value === 'rating'} onPress={() => setSort(value)} />)}</View>
-    <Text style={s.body}>Ratings will be available when real Den reviews exist.</Text>
+    <Text style={s.heading}>Sort by</Text><View style={s.chips}>{sorts.map(([value, label]) => <ChoiceChip key={value} label={label} selected={sort === value} disabled={loading} onPress={() => setSort(value)} />)}</View>
+    <Text style={s.body}>Ratings come only from verified Den reviews. Unrated vendors appear last when sorting by rating.</Text>
     {loading && <Loading />}{error && <ErrorNotice message={error} retry={() => void load(page)} />}{actionError && <ErrorNotice message={actionError} />}
     {!loading && !error && metadata && <Text style={s.body}>{metadata.count} {metadata.count === 1 ? 'vendor' : 'vendors'} found · {metadata.price_note}</Text>}
     {!loading && !error && !matches.length && <View style={s.card}><Text style={s.heading}>A little more room to look</Text><Text style={s.body}>No active approved vendors fit these choices yet. Try fewer filters, or adjust your event categories, city, or budget.</Text><Button label="Clear filters" variant="secondary" onPress={reset} /><Button label="Edit event" variant="secondary" onPress={() => router.push({ pathname: '/plan-event', params: { id } })} /></View>}
     {matches.map((vendor) => <View key={vendor.id} style={s.card}>
       {vendor.profile_image && <Image source={{ uri: vendor.profile_image }} accessibilityLabel={`${vendor.business_name} profile`} alt={`${vendor.business_name} profile`} style={{ width: 64, height: 64, borderRadius: 16 }} />}
       <Text style={s.badge}>Approved · {vendor.match_score}/100 match</Text><Text style={s.heading}>{vendor.business_name}</Text><Text style={s.body}>{vendor.city} · Serving {vendor.service_area}</Text><Text style={s.body} numberOfLines={3}>{vendor.description}</Text>
+      <Text style={s.body}>{vendor.rating === null ? 'No verified reviews yet' : `${vendor.rating}/5 ? ${vendor.review_count} verified Den reviews`}</Text>
       {vendor.matching_reasons.filter((reason) => reason.points > 0).map((reason) => <Text key={reason.code} style={s.body}>• {reason.label}</Text>)}
       {vendor.listings.map((listing) => <Text key={listing.id} style={s.body}>{listing.title} · {listing.price === null || listing.pricing_type === 'CONTACT_FOR_QUOTE' ? 'Contact for a quote' : `${listing.pricing_type === 'STARTING_FROM' ? 'From ' : ''}$${listing.price}${listing.pricing_type === 'HOURLY' ? '/hour' : ''}`}</Text>)}
       <Button label="View Profile" variant="secondary" onPress={() => { void Linking.openURL(vendor.profile_url).catch((cause: unknown) => setActionError(requestError(cause))); }} />

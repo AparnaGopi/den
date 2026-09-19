@@ -2,7 +2,7 @@ from django.db import models
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from PIL import Image
 
 from accounts.models import User
@@ -115,6 +115,7 @@ class Listing(models.Model):
 
 	profile = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name="listings")
 	listing_type = models.CharField(max_length=20, choices=ListingType.choices)
+	help_types = models.JSONField(default=list, blank=True, help_text="Event services this listing provides.")
 	title = models.CharField(max_length=160)
 	category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="listings", null=True, blank=True)
 	image = models.ImageField(upload_to=vendor_upload_path, validators=[validate_vendor_image])
@@ -129,6 +130,8 @@ class Listing(models.Model):
 		ordering = ("-is_active", "title")
 
 	def clean(self):
+		if not isinstance(self.help_types, list) or any(value not in EventRequest.HelpType.values for value in self.help_types):
+			raise ValidationError({"help_types": "Choose supported event services."})
 		if self.category_id and not self.category.is_active:
 			raise ValidationError({"category": "Choose an active category."})
 		if self.pricing_type == self.PricingType.CONTACT_FOR_QUOTE and self.price is not None:
@@ -214,3 +217,23 @@ class EventRequest(models.Model):
 
     def __str__(self):
         return f"{self.get_event_type_display() or 'Draft event'} ({self.pk})"
+
+
+class Review(models.Model):
+    event = models.ForeignKey(EventRequest, on_delete=models.CASCADE, related_name="reviews")
+    vendor = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name="reviews")
+    rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    comment = models.TextField(max_length=2000)
+    is_verified = models.BooleanField(default=False)
+    verification_note = models.TextField(blank=True, help_text="Staff evidence confirming the customer used this vendor. Never public.")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("event", "vendor"), name="one_review_per_event_vendor"),
+            models.CheckConstraint(condition=models.Q(rating__gte=1, rating__lte=5), name="review_rating_range"),
+        ]
+
+    def clean(self):
+        if self.is_verified and not self.verification_note.strip():
+            raise ValidationError({"verification_note": "Record verification evidence before publishing this review."})

@@ -2,7 +2,7 @@
 import re
 from decimal import Decimal
 
-from django.db.models import Prefetch
+from django.db.models import Avg, Count, Prefetch, Q
 from django.urls import reverse
 
 from accounts.models import User
@@ -22,6 +22,20 @@ HELP_LISTING_TYPES = {
     EventRequest.HelpType.CATERING: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE, Listing.ListingType.PRODUCT},
     EventRequest.HelpType.OTHER_SERVICES: set(Listing.ListingType.values),
 }
+
+
+SPECIFIC_HELP = {"PLANNER", "DECORATOR", "CATERING", "COMPLETE_SERVICE"}
+
+
+def provides_help(listing, requested):
+    if not requested:
+        return True
+    for service in requested:
+        if listing.listing_type not in HELP_LISTING_TYPES.get(service, set()):
+            continue
+        if service not in SPECIFIC_HELP or service in listing.help_types:
+            return True
+    return False
 
 
 def normalized(value):
@@ -56,7 +70,10 @@ def matching_vendors(event, filters, request):
     if filters.get("service"):
         help_types.intersection_update(HELP_LISTING_TYPES[filters["service"]])
     active_listings = Listing.objects.filter(is_active=True).select_related("category")
-    profiles = public_vendors().select_related("primary_category").prefetch_related(
+    profiles = public_vendors().annotate(
+        verified_rating=Avg("reviews__rating", filter=Q(reviews__is_verified=True)),
+        review_count=Count("reviews", filter=Q(reviews__is_verified=True), distinct=True),
+    ).select_related("primary_category").prefetch_related(
         Prefetch("additional_categories", queryset=Category.objects.filter(is_active=True)),
         Prefetch("listings", queryset=active_listings, to_attr="discovery_listings"),
     )
@@ -65,6 +82,8 @@ def matching_vendors(event, filters, request):
         if not serves_location(profile, event.city):
             continue
         if filters.get("location") and not serves_location(profile, filters["location"]):
+            continue
+        if filters.get("rating_min") is not None and (profile.verified_rating is None or Decimal(str(profile.verified_rating)) < filters["rating_min"]):
             continue
         profile_categories = {category.pk for category in profile.additional_categories.all()}
         if profile.primary_category and profile.primary_category.is_active:
@@ -76,6 +95,10 @@ def matching_vendors(event, filters, request):
                 continue
             categories = {listing.category_id} if listing.category_id else profile_categories
             if required and not categories.intersection(required):
+                continue
+            if not provides_help(listing, event.help_types):
+                continue
+            if filters.get("service") and not provides_help(listing, [filters["service"]]):
                 continue
             if listing.listing_type not in help_types:
                 continue
@@ -114,7 +137,7 @@ def matching_vendors(event, filters, request):
             "approval_status": profile.approval_status,
             "profile_url": request.build_absolute_uri(reverse("core:vendor-profile", args=[profile.slug])),
             "match_score": sum(reason["points"] for reason in reasons), "matching_reasons": reasons,
-            "rating": None, "starting_price": str(min(priced)) if priced else None,
+            "rating": round(profile.verified_rating, 2) if profile.verified_rating is not None else None, "review_count": profile.review_count, "starting_price": str(min(priced)) if priced else None,
             "created_at": profile.created_at.isoformat(),
             "listings": [{"id": listing.pk, "title": listing.title, "listing_type": listing.listing_type,
                           "category": listing.category_id, "pricing_type": listing.pricing_type,
@@ -123,6 +146,8 @@ def matching_vendors(event, filters, request):
     sort = filters["sort"]
     if sort == "price":
         results.sort(key=lambda item: (item["starting_price"] is None, Decimal(item["starting_price"] or "0"), -item["match_score"], item["id"]))
+    elif sort == "rating":
+        results.sort(key=lambda item: (item["rating"] is None, -(item["rating"] or 0), -item["match_score"], item["id"]))
     elif sort == "newest":
         results.sort(key=lambda item: (item["created_at"], item["id"]), reverse=True)
     else:

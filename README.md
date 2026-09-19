@@ -143,3 +143,47 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+## Customer discovery and vendor milestone
+
+Django serves the customer questionnaire at `/events/plan/`, results at
+`/events/<id>/matches/`, and full vendor editing at `/vendor/profile/`.
+The Expo application uses the same event records through `/api/v1/events/`
+and the shared server matcher. Set `EXPO_PUBLIC_API_URL` to the reachable
+Django origin plus `/api/v1` (use your computer's LAN address on a device).
+
+Apply schema changes with `python manage.py migrate`. Vendors should edit
+listings on the website and select **Services / tasks provided**. Existing
+listings retain their data, but must explicitly declare planner, decorator,
+catering, or complete service before matching those specific requests.
+Rental requests continue to use the rental listing type. Availability is
+vendor-provided text; matching does not promise availability on a given date.
+
+Both results interfaces support category, service, location, price and
+`rating_min` filters, with relevance, price, newest and rating sorting.
+Only active approved vendors with active listings appear. Ratings average
+verified Den reviews only; unrated vendors sort last and are excluded by a
+minimum-rating filter. No Google reviews are imported.
+
+Customers can submit a review using
+`POST /api/v1/events/<id>/vendors/<vendor_id>/reviews/` with `rating` (1?5)
+and `comment`. The event must belong to the customer, be in the past and
+have that vendor saved. Submissions remain unverified until staff records
+service-verification evidence in Django admin. Saving a vendor is not proof
+of a booking. Customers and vendors cannot set verification or approval.
+
+`GET/PATCH /api/v1/vendor/profile/` exposes only the signed-in vendor's basic
+profile fields. Full services, products, prices, portfolio, tags, availability
+and Google Business URL editing stays on the website. The mobile web button
+opens the returned `full_profile_url`; the browser uses normal Django login.
+
+Validation:
+
+```sh
+python manage.py check
+python manage.py test
+cd mobile
+npm run lint
+npm run typecheck
+```

@@ -8,8 +8,8 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from core.matching import matching_vendors, public_vendors
-from core.models import Category, EventRequest, VendorProfile
-from .serializers import EventRequestSerializer, MatchFilterSerializer, STEP_FIELDS, VendorBasicProfileSerializer
+from core.models import Category, EventRequest, Review, VendorProfile
+from .serializers import EventRequestSerializer, MatchFilterSerializer, STEP_FIELDS, VendorBasicProfileSerializer, ReviewSubmissionSerializer
 
 
 class IsCustomer(permissions.BasePermission):
@@ -113,10 +113,10 @@ class EventMatchesView(CustomerEventsMixin, APIView):
         page = paginator.paginate_queryset(results, request, view=self)
         response = paginator.get_paginated_response(page)
         response.data.update({
-            "rating_available": False,
+            "rating_available": any(item["rating"] is not None for item in results),
             "requested_sort": filters.validated_data["sort"],
-            "applied_sort": "relevance" if filters.validated_data["sort"] == "rating" else filters.validated_data["sort"],
-            "matching_version": 1,
+            "applied_sort": filters.validated_data["sort"],
+            "matching_version": 2,
             "price_note": "Published prices are indicative. Hourly and quote-only listings need more details; an event budget is not a booking quote.",
         })
         return response
@@ -169,3 +169,21 @@ class VendorBasicProfileView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class EventReviewView(CustomerEventsMixin, APIView):
+    @transaction.atomic
+    def post(self, request, pk, vendor_id):
+        from django.utils import timezone
+        event = self.event(pk, lock=True)
+        if not event.event_date or event.event_date >= timezone.localdate():
+            raise ValidationError({"event": "Reviews are available after the event date."})
+        vendor = get_object_or_404(public_vendors(), pk=vendor_id)
+        if not event.saved_vendors.filter(pk=vendor.pk).exists():
+            raise ValidationError({"vendor": "Review a vendor saved to this event."})
+        if Review.objects.filter(event=event, vendor=vendor).exists():
+            raise ValidationError({"review": "You already reviewed this vendor for this event."})
+        data = ReviewSubmissionSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        review = Review.objects.create(event=event, vendor=vendor, **data.validated_data)
+        return Response({"id": review.pk, "is_verified": False}, status=status.HTTP_201_CREATED)

@@ -37,13 +37,14 @@ export type VendorMatch = {
   profile_url: string;
   match_score: number;
   matching_reasons: { code: string; points: number; label: string }[];
-  rating: null;
+  rating: number | null;
+  review_count: number;
   starting_price: string | null;
   created_at: string;
   listings: { id: number; title: string; listing_type: string; category: number | null; pricing_type: string; price: string | null }[];
 };
 export type MatchPage = Page<VendorMatch> & {
-  rating_available: false;
+  rating_available: boolean;
   requested_sort: string;
   applied_sort: string;
   matching_version: number;

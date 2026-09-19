@@ -41,7 +41,7 @@ def approved_vendor_profile(request, slug):
 		user__is_active=True,
 		user__role=User.Role.VENDOR,
 	)
-	return render(request, "core/vendor_profile.html", {"profile": profile})
+	return render(request, "core/vendor_profile.html", {"profile": profile, "reviews": profile.reviews.filter(is_verified=True)})
 
 
 def vendor_only(request):
@@ -161,7 +161,7 @@ def event_matches(request, event_id):
         filters.setdefault("approval_status", VendorProfile.ApprovalStatus.APPROVED)
         filters.setdefault("sort", "relevance")
         matches = matching_vendors(event, filters, request)
-    return render(request, "core/event_matches.html", {"event": event, "filter_form": form, "matches": matches, "rating_available": False, "saved_vendor_ids": set(event.saved_vendors.values_list("pk", flat=True))})
+    return render(request, "core/event_matches.html", {"event": event, "filter_form": form, "matches": matches, "rating_available": any(item["rating"] is not None for item in matches), "saved_vendor_ids": set(event.saved_vendors.values_list("pk", flat=True))})
 
 
 @require_POST

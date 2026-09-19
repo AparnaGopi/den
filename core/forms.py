@@ -53,6 +53,7 @@ class VendorProfileForm(forms.ModelForm):
             profile.slug = f"{profile.slug}-{profile.user_id}"
         if commit:
             profile.save()
+            self._save_m2m()
         return profile
 
 
@@ -64,10 +65,11 @@ class PortfolioEntryForm(forms.ModelForm):
 
 class ListingForm(forms.ModelForm):
     category = forms.ModelChoiceField(queryset=Category.objects.none(), label="Category")
+    help_types = forms.MultipleChoiceField(choices=EventRequest.HelpType.choices, required=False, widget=forms.CheckboxSelectMultiple, label="Services / tasks provided")
 
     class Meta:
         model = Listing
-        fields = ("listing_type", "title", "category", "image", "description", "pricing_type", "price", "is_active")
+        fields = ("listing_type", "help_types", "title", "category", "image", "description", "pricing_type", "price", "is_active")
         widgets = {"description": forms.Textarea(attrs={"rows": 4})}
 
     def __init__(self, *args, **kwargs):
@@ -113,6 +115,10 @@ class EventDiscoveryForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["required_categories"].queryset = Category.objects.filter(is_active=True)
+        if self.instance.pk:
+            self.initial["colours"] = ", ".join(self.instance.colours)
+            legacy = [(value, label) for value, label in EventRequest.HelpType.choices if value in self.instance.help_types and value not in dict(WEB_HELP_CHOICES)]
+            self.fields["help_types"].choices = WEB_HELP_CHOICES + tuple(legacy)
         for field in ("event_type", "event_date", "city", "guest_count", "budget_min", "budget_max", "help_types", "required_categories"):
             self.fields[field].required = True
 
@@ -139,12 +145,13 @@ class EventDiscoveryForm(forms.ModelForm):
 
 
 class MatchWebFilterForm(forms.Form):
+    rating_min = forms.DecimalField(required=False, min_value=0, max_value=5, decimal_places=1, label="Minimum verified rating")
     category = forms.ModelChoiceField(queryset=Category.objects.none(), required=False)
     location = forms.CharField(required=False, max_length=100)
     service = forms.ChoiceField(choices=(("", "All services"),) + WEB_HELP_CHOICES, required=False)
     price_min = forms.DecimalField(required=False, min_value=0)
     price_max = forms.DecimalField(required=False, min_value=0)
-    sort = forms.ChoiceField(choices=(("relevance", "Relevance"), ("price", "Price"), ("newest", "Newest"), ("rating", "Rating ? coming later")), required=False)
+    sort = forms.ChoiceField(choices=(("relevance", "Relevance"), ("price", "Price"), ("newest", "Newest"), ("rating", "Verified rating")), required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

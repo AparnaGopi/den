@@ -154,3 +154,7 @@ footer p { margin: 0; }
   .form-grid, .match-filters, .vendor-match-grid, .event-card-grid { grid-template-columns: 1fr; }
   .discovery-steps > li > span { margin-bottom: -8px; }
 }
+
+/* Keep long vendor names and native form controls inside narrow screens. */
+.discovery-steps fieldset, .match-filters > div, .vendor-match-card { min-width: 0; }
+.vendor-match-card { overflow-wrap: anywhere; }

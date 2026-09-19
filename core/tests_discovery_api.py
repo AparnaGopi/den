@@ -37,7 +37,7 @@ class EventDiscoveryAPITests(APITestCase):
         values.update(profile_overrides)
         profile = VendorProfile.objects.create(**values)
         Listing.objects.create(profile=profile, listing_type=Listing.ListingType.SERVICE, title=f"{name} planning",
-                               category=category, image="listings/test.jpg", description="Planning help",
+                               category=category, help_types=[EventRequest.HelpType.PLANNER], image="listings/test.jpg", description="Planning help",
                                pricing_type=Listing.PricingType.STARTING_FROM, price=Decimal("2500"), is_active=True)
         return profile
 
@@ -140,13 +140,13 @@ class EventDiscoveryAPITests(APITestCase):
         self.assertEqual(budget["points"], 0)
         self.assertEqual(match["match_score"], 80)
 
-    def test_filters_and_sorting_are_validated_and_rating_falls_back(self):
+    def test_filters_and_sorting_are_validated_and_unrated_vendors_remain_visible(self):
         response = self.client.get(self.matches_url(), {"category": self.category.pk, "service": EventRequest.HelpType.PLANNER, "listing_type": "SERVICE", "location": "Mississauga", "price_min": "2000", "price_max": "3000", "sort": "newest"})
         self.assertEqual([item["id"] for item in response.data["results"]], [self.profile.pk])
         self.assertEqual(response.data["applied_sort"], "newest")
         rating = self.client.get(self.matches_url(), {"sort": "rating"})
         self.assertFalse(rating.data["rating_available"])
-        self.assertEqual(rating.data["applied_sort"], "relevance")
+        self.assertEqual(rating.data["applied_sort"], "rating")
         private = self.client.get(self.matches_url(), {"approval_status": "PENDING"})
         self.assertEqual(private.data["results"], [])
         invalid = self.client.get(self.matches_url(), {"price_min": "3000", "price_max": "1000"})
