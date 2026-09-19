@@ -1,98 +1,54 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Link, useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { Button } from '@/components/ui/button';
+import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+export default function WelcomeScreen() {
+  const router = useRouter();
+  const { status, user } = useAuth();
+
+  useEffect(() => {
+    if (status === 'authenticated') router.replace(user?.role === 'vendor' ? '/vendor-home' : '/home');
+  }, [router, status, user?.role]);
+
+  if (status === 'loading') return <View style={styles.loading} />;
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
-
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.content}>
+        <Text style={styles.wordmark}>den<Text style={styles.dot}>.</Text></Text>
+        <View style={styles.copy}>
+          <Text style={styles.eyebrow}>EVENTS, GATHERED</Text>
+          <Text style={styles.title}>Make room for the good stuff.</Text>
+          <Text style={styles.subtitle}>Plan beautiful moments with less noise and more intention.</Text>
+        </View>
+        <View style={styles.actions}>
+          <Button label="Create an account" onPress={() => router.push('/register')} />
+          <Link href="/login" asChild>
+            <Pressable style={styles.loginLink}><Text style={styles.loginText}>I already have an account</Text></Pressable>
+          </Link>
+        </View>
+      </View>
+      <Text style={styles.footer}>A calmer way to gather.</Text>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  safeArea: { backgroundColor: Colors.light.background, flex: 1 },
+  content: { flex: 1, justifyContent: 'space-between', padding: Spacing.four },
+  wordmark: { color: Colors.light.ink, fontFamily: Fonts.serif, fontSize: 42, fontWeight: '700', letterSpacing: -3 },
+  dot: { color: Colors.light.terracotta },
+  copy: { gap: Spacing.three, maxWidth: 360 },
+  eyebrow: { color: Colors.light.terracotta, fontFamily: Fonts.sans, fontSize: 12, fontWeight: '700', letterSpacing: 2 },
+  title: { color: Colors.light.ink, fontFamily: Fonts.serif, fontSize: 48, lineHeight: 50 },
+  subtitle: { color: Colors.light.muted, fontFamily: Fonts.sans, fontSize: 17, lineHeight: 26 },
+  actions: { gap: Spacing.two },
+  loginLink: { alignItems: 'center', minHeight: 48, justifyContent: 'center' },
+  loginText: { color: Colors.light.ink, fontFamily: Fonts.sans, fontSize: 14, fontWeight: '700' },
+  footer: { color: Colors.light.muted, fontFamily: Fonts.sans, fontSize: 13, padding: Spacing.four },
+  loading: { backgroundColor: Colors.light.background, flex: 1 },
 });

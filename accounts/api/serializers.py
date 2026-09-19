@@ -14,11 +14,12 @@ class UserSerializer(serializers.ModelSerializer):
 class RegistrationSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(validators=[])
     password = serializers.CharField(write_only=True, min_length=8)
+    password_confirm = serializers.CharField(write_only=True, min_length=8)
     role = serializers.ChoiceField(choices=User.Role.choices)
 
     class Meta:
         model = User
-        fields = ("email", "password", "first_name", "last_name", "role")
+        fields = ("email", "password", "password_confirm", "first_name", "last_name", "role")
 
     def validate_email(self, value):
         value = value.lower()
@@ -31,8 +32,14 @@ class RegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Role must be customer or vendor.")
         return value
 
+    def validate(self, attrs):
+        if attrs["password"] != attrs["password_confirm"]:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+        return attrs
+
     def create(self, validated_data):
         password = validated_data.pop("password")
+        validated_data.pop("password_confirm")
         return User.objects.create_user(password=password, **validated_data)
 
 

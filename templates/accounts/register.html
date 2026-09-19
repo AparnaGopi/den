@@ -14,7 +14,8 @@
                     {{ field.label_tag }}
                     {{ field }}
                     {% for error in field.errors %}<p class="error">{{ error }}</p>{% endfor %}
-                    {% if field.help_text %}<p class="help-text">{{ field.help_text|safe }}</p>{% endif %}
+                    {% if field.name == "password1" %}<p class="help-text">Use at least 8 characters. Avoid common or entirely numeric passwords.</p>{% endif %}
+                    {% if field.name == "password2" %}<p class="help-text">Enter the same password again to confirm.</p>{% endif %}
                 </div>
             {% endfor %}
             <button class="button button-primary button-full" type="submit">Create account</button>

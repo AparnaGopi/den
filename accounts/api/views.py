@@ -26,7 +26,10 @@ class RegistrationView(APIView):
     registration_role = None
 
     def post(self, request):
-        serializer = RegistrationSerializer(data=request.data)
+        data = request.data.copy()
+        if self.registration_role == User.Role.CUSTOMER:
+            data.setdefault("role", User.Role.CUSTOMER)
+        serializer = RegistrationSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         if serializer.validated_data["role"] != self.registration_role:
             return Response(

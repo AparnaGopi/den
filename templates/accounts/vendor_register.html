@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Become a Vendor | Den{% endblock %}
+{% block content %}
+<section class="form-page">
+    <div class="form-card">
+        <p class="eyebrow">Build your storefront</p>
+        <h1>Become a vendor</h1>
+        <p class="form-intro">Create your vendor account, then add the details customers need to find you.</p>
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            {% for field in form %}
+                <div class="field{% if field.errors %} has-error{% endif %}">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    {% for error in field.errors %}<p class="error">{{ error }}</p>{% endfor %}
+                </div>
+            {% endfor %}
+            <button class="button button-primary button-full" type="submit">Create vendor account</button>
+        </form>
+        <p class="form-footer">Already have an account? <a href="{% url 'accounts:login' %}">Log in</a></p>
+    </div>
+</section>
+{% endblock %}

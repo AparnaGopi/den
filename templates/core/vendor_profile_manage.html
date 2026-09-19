@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}Edit vendor profile | Den{% endblock %}
+{% block content %}
+<section class="management-page"><p class="eyebrow">Vendor studio</p><h1>Your profile</h1><p class="dashboard-intro">Build the storefront customers will discover. An admin approval is required before it becomes public.</p><form class="management-form" method="post" enctype="multipart/form-data">{% csrf_token %}{{ form.as_p }}<button class="button button-primary" type="submit">Save profile</button></form></section>
+{% endblock %}

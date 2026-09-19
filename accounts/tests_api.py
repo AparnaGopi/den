@@ -12,15 +12,16 @@ class AuthenticationAPITests(APITestCase):
             {
                 "email": "customer@example.com",
                 "password": "a-strong-password-123",
+                "password_confirm": "a-strong-password-123",
                 "first_name": "Casey",
                 "last_name": "Customer",
-                "role": User.Role.CUSTOMER,
             },
             format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["user"]["role"], User.Role.CUSTOMER)
+        self.assertTrue(User.objects.filter(email="customer@example.com", role=User.Role.CUSTOMER).exists())
         self.assertIn("access", response.data)
         self.assertIn("refresh", response.data)
 
@@ -30,6 +31,7 @@ class AuthenticationAPITests(APITestCase):
             {
                 "email": "vendor@example.com",
                 "password": "a-strong-password-123",
+                "password_confirm": "a-strong-password-123",
                 "role": User.Role.VENDOR,
             },
             format="json",
@@ -44,6 +46,7 @@ class AuthenticationAPITests(APITestCase):
             {
                 "email": "admin@example.com",
                 "password": "a-strong-password-123",
+                "password_confirm": "a-strong-password-123",
                 "role": "admin",
             },
             format="json",
@@ -59,6 +62,7 @@ class AuthenticationAPITests(APITestCase):
             {
                 "email": "vendor@example.com",
                 "password": "a-strong-password-123",
+                "password_confirm": "a-strong-password-123",
                 "role": User.Role.VENDOR,
             },
             format="json",
@@ -75,6 +79,7 @@ class AuthenticationAPITests(APITestCase):
             {
                 "email": "duplicate@example.com",
                 "password": "a-strong-password-123",
+                "password_confirm": "a-strong-password-123",
                 "role": User.Role.CUSTOMER,
             },
             format="json",

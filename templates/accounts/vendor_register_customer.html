@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Become a Vendor | Den{% endblock %}
+{% block content %}
+<section class="form-page">
+    <div class="form-card">
+        <p class="eyebrow">One account, one role</p>
+        <h1>You are currently signed in with a customer account.</h1>
+        <p class="form-intro">Vendor accounts are separate from customer accounts. Continue to your customer dashboard or sign out to register as a vendor.</p>
+        <div class="hero-actions">
+            <a class="button button-primary" href="{% url 'core:customer-dashboard' %}">Continue as customer</a>
+            <form method="post" action="{% url 'accounts:logout' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'accounts:vendor-register' %}">
+                <button class="button button-secondary" type="submit">Log out and register as a vendor</button>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

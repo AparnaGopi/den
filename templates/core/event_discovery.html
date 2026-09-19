@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Plan an event | Den{% endblock %}
+{% block content %}
+<section class="discovery-page content-width">
+  <p class="eyebrow">Event discovery</p>
+  <h1>Tell us what you’re gathering for.</h1>
+  <p class="dashboard-intro">Six small steps help Den find approved vendors. City and postal code are enough—we never ask for an exact address here.</p>
+  <form method="post" class="discovery-form">{% csrf_token %}
+    {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+    <ol class="discovery-steps">
+      <li><span>1</span><fieldset><legend>What are we celebrating?</legend>{{ form.event_type.as_field_group }}{{ form.custom_event_type.as_field_group }}</fieldset></li>
+      <li><span>2</span><fieldset><legend>When and where?</legend><div class="form-grid">{{ form.event_date.as_field_group }}{{ form.city.as_field_group }}{{ form.postal_code.as_field_group }}</div><small>Do not enter a home or venue street address.</small></fieldset></li>
+      <li><span>3</span><fieldset><legend>Guests and overall event budget</legend><div class="form-grid">{{ form.guest_count.as_field_group }}{{ form.budget_min.as_field_group }}{{ form.budget_max.as_field_group }}</div></fieldset></li>
+      <li><span>4</span><fieldset><legend>What help do you need?</legend><div class="choice-grid">{{ form.help_types }}</div></fieldset></li>
+      <li><span>5</span><fieldset><legend>Which service categories matter?</legend><div class="choice-grid">{{ form.required_categories }}</div></fieldset></li>
+      <li><span>6</span><fieldset><legend>Style and additional details</legend><div class="form-grid">{{ form.theme.as_field_group }}{{ form.colours.as_field_group }}{{ form.venue_type.as_field_group }}</div>{{ form.notes.as_field_group }}</fieldset></li>
+    </ol>
+    <button type="submit" class="button button-primary">Find approved vendors</button>
+  </form>
+</section>
+{% endblock %}

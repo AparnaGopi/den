@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Vendor matches | Den{% endblock %}
+{% block content %}
+<section class="matches-page content-width">
+  <p class="eyebrow">Approved vendors</p><h1>Matches for {{ event.get_event_type_display }}</h1>
+  <p class="dashboard-intro">{{ event.event_date }} · {{ event.city }} · {{ event.guest_count }} guests. Published prices are indicative and are not booking quotes.</p>
+  <form method="get" class="match-filters">
+    {{ filter_form.category.as_field_group }}{{ filter_form.location.as_field_group }}{{ filter_form.service.as_field_group }}
+    {{ filter_form.price_min.as_field_group }}{{ filter_form.price_max.as_field_group }}{{ filter_form.sort.as_field_group }}
+    <div><label for="rating-filter">Rating</label><select id="rating-filter" disabled><option>Available after verified Den reviews launch</option></select></div>
+    <button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" href="{% url 'core:event-matches' event.pk %}">Clear</a>
+  </form>
+  <div class="match-summary"><strong>{{ matches|length }}</strong> approved active vendor{{ matches|length|pluralize }} found</div>
+  <div class="vendor-match-grid">
+    {% for vendor in matches %}<article class="vendor-match-card">
+      <div class="match-card-heading">{% if vendor.profile_image %}<img src="{{ vendor.profile_image }}" alt="{{ vendor.business_name }} profile">{% endif %}<div><span class="approval-badge">Approved · {{ vendor.match_score }}/100 match</span><h2>{{ vendor.business_name }}</h2><p>{{ vendor.city }} · Serving {{ vendor.service_area }}</p></div></div>
+      <p>{{ vendor.description }}</p><ul>{% for reason in vendor.matching_reasons %}{% if reason.points %}<li>{{ reason.label }}</li>{% endif %}{% endfor %}</ul>
+      <div class="match-listings">{% for listing in vendor.listings %}<p><strong>{{ listing.title }}</strong> · {% if listing.price %}${{ listing.price }}{% else %}Contact for a quote{% endif %}</p>{% endfor %}</div>
+      <div class="studio-actions"><a class="button button-secondary" href="{{ vendor.profile_url }}">View profile</a><form method="post" action="{% url 'core:event-vendor-save' event.pk vendor.id %}">{% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}"><button class="button button-primary" type="submit">{% if vendor.id in saved_vendor_ids %}Saved · Remove{% else %}Save{% endif %}</button></form></div>
+    </article>{% empty %}<div class="empty-state"><h2>No matches yet</h2><p>Try widening your location, price, category, or service filters.</p><a class="button button-secondary" href="{% url 'core:event-matches' event.pk %}">Clear filters</a></div>{% endfor %}
+  </div>
+</section>
+{% endblock %}
