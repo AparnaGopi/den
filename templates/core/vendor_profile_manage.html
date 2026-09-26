@@ -1,5 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Edit vendor profile | Den{% endblock %}
 {% block content %}
-<section class="management-page"><p class="eyebrow">Vendor studio</p><h1>Your profile</h1><p class="dashboard-intro">Build the storefront customers will discover. An admin approval is required before it becomes public.</p><form class="management-form" method="post" enctype="multipart/form-data">{% csrf_token %}{{ form.as_p }}<button class="button button-primary" type="submit">Save profile</button></form></section>
+<section class="management-page"><p class="eyebrow">Vendor studio &middot; 1. Profile &rarr; 2. Preview &rarr; 3. Submit</p><h1>Your company profile</h1>
+<p>Status: {{ profile.get_approval_status_display }}. Identity or primary-category changes require another review.</p>
+{% if profile.review_feedback %}<p role="status">Admin feedback: {{ profile.review_feedback }}</p>{% endif %}
+<nav><a href="{% url 'core:vendor-portfolio-manage' %}">Portfolio</a> &middot; <a href="{% url 'core:vendor-listings-manage' %}">Services & products</a> &middot; <a href="{% url 'core:vendor-profile-preview' %}">Preview saved profile</a></nav>
+<form id="vendor-editor" class="management-form" method="post" enctype="multipart/form-data">{% csrf_token %}
+{{ form.non_field_errors }}
+{% for field in form %}
+{% if field.name == 'business_name' %}<h2>Company & contact</h2>{% elif field.name == 'primary_category' %}<h2>Categories & services</h2>{% elif field.name == 'city' %}<h2>Location & travel</h2>{% elif field.name == 'short_description' %}<h2>Tell your story</h2>{% endif %}
+<div class="vendor-field">{{ field.label_tag }}{{ field }}{% if field.help_text %}<p class="muted">{{ field.help_text }}</p>{% endif %}{{ field.errors }}</div>
+{% if field.name == 'specialties_answer' %}<button type="button" id="create-description" class="button button-secondary" data-url="{% url 'core:vendor-description-create' %}">Create description</button><p id="description-status" role="status">Create a draft from your answers, then edit it below.</p>{% endif %}
+{% endfor %}
+<datalist id="vendor-cities">{% for city in cities %}<option value="{{ city.name }}">{% endfor %}</datalist>
+<button class="button button-primary" type="submit">Save & preview</button></form></section>
+{% include "core/vendor_editor_assets.html" %}
 {% endblock %}

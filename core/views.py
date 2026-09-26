@@ -1,15 +1,18 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods, require_POST
 
 from accounts.models import User
 
-from .forms import EventDiscoveryForm, ListingForm, MatchWebFilterForm, PortfolioEntryForm, VendorProfileForm
+from .forms import EventDiscoveryForm, ListingForm, MatchWebFilterForm, PortfolioEntryForm, VendorProfileForm, PortfolioBatchForm
+from .event_rules import EVENT_LOCATIONS, event_location_display
 from .matching import matching_vendors, public_vendors
-from .models import EventRequest, Listing, PortfolioEntry, VendorProfile
+from .models import Category, EventRequest, Listing, PortfolioEntry, VendorProfile, ServiceLocation, ListingImage
 
 
 def home(request):
@@ -21,6 +24,8 @@ def customer_dashboard(request):
 	if request.user.role != User.Role.CUSTOMER:
 		return redirect("core:vendor-dashboard")
 	events = EventRequest.objects.filter(customer=request.user).exclude(status=EventRequest.Status.ARCHIVED).prefetch_related("required_categories")
+	for event in events:
+		event.display_city = event_location_display(event.city)
 	return render(request, "core/dashboard.html", {"dashboard_type": "Customer", "event_requests": events})
 
 
@@ -34,7 +39,7 @@ def vendor_dashboard(request):
 
 def approved_vendor_profile(request, slug):
 	profile = get_object_or_404(
-		VendorProfile.objects.prefetch_related("portfolio_entries", "listings"),
+		VendorProfile.objects.select_related("primary_category").prefetch_related("portfolio_entries", "listings__images", "listings__service_tags", "additional_categories", "service_tags", "event_tags", "service_locations"),
 		slug=slug,
 		approval_status=VendorProfile.ApprovalStatus.APPROVED,
 		is_active=True,
@@ -58,21 +63,62 @@ def get_vendor_profile(user):
 			"city": "",
 			"service_area": "",
 			"description": "",
+			"contact_first_name": user.first_name, "contact_last_name": user.last_name, "business_email": user.email,
 		},
 	)[0]
 
 
 @login_required
 @require_http_methods(["GET", "POST"])
+@transaction.atomic
 def vendor_profile_manage(request):
-	vendor_only(request)
-	profile = get_vendor_profile(request.user)
-	form = VendorProfileForm(request.POST or None, request.FILES, instance=profile)
-	if request.method == "POST" and form.is_valid():
-		form.save()
-		messages.success(request, "Your vendor profile has been saved." if profile.is_approved else "Your vendor profile has been saved and sent for approval.")
-		return redirect("core:vendor-profile-manage")
-	return render(request, "core/vendor_profile_manage.html", {"form": form, "profile": profile})
+    vendor_only(request)
+    profile = get_vendor_profile(request.user)
+    if request.method == "POST":
+        profile = VendorProfile.objects.select_for_update().get(pk=profile.pk)
+    form = VendorProfileForm(request.POST or None, request.FILES, instance=profile)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            form.save()
+        messages.success(request, "Profile saved. Preview it before submitting for approval.")
+        return redirect("core:vendor-profile-preview")
+    return render(request, "core/vendor_profile_manage.html", {"form": form, "profile": profile, "cities": ServiceLocation.objects.filter(is_active=True)})
+
+
+@login_required
+def vendor_profile_preview(request):
+    vendor_only(request)
+    profile = get_vendor_profile(request.user)
+    return render(request, "core/vendor_profile.html", {"profile": profile, "preview": True, "reviews": profile.reviews.filter(is_verified=True)})
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def vendor_profile_submit(request):
+    vendor_only(request)
+    profile = get_vendor_profile(request.user)
+    profile = VendorProfile.objects.select_for_update().get(pk=profile.pk)
+    errors = profile.submission_errors()
+    if errors:
+        messages.error(request, "Complete these profile fields before submitting: " + ", ".join(errors))
+        return redirect("core:vendor-profile-manage")
+    if not profile.is_approved:
+        profile.approval_status = VendorProfile.ApprovalStatus.PENDING
+        profile.save(update_fields=["approval_status", "updated_at"])
+    messages.success(request, "Your profile has been submitted for review.")
+    return redirect("core:vendor-profile-preview")
+
+
+@login_required
+@require_POST
+def vendor_description_create(request):
+    vendor_only(request)
+    from .vendor_descriptions import description_draft
+    form = VendorProfileForm(request.POST, instance=get_vendor_profile(request.user))
+    if not form.is_valid():
+        return JsonResponse({"errors": form.errors}, status=400)
+    return JsonResponse({"description": description_draft(form.cleaned_data)})
 
 
 @login_required
@@ -81,11 +127,17 @@ def vendor_portfolio_manage(request, entry_id=None):
 	vendor_only(request)
 	profile = get_vendor_profile(request.user)
 	entry = get_object_or_404(PortfolioEntry, pk=entry_id, profile=profile) if entry_id else None
-	form = PortfolioEntryForm(request.POST or None, request.FILES, instance=entry)
+	files = request.FILES.copy()
+	if "image" in files and "images" not in files and not entry:
+		files.setlist("images", files.getlist("image"))
+	form = PortfolioEntryForm(request.POST or None, files, instance=entry) if entry else PortfolioBatchForm(request.POST or None, files)
 	if request.method == "POST" and form.is_valid():
-		entry = form.save(commit=False)
-		entry.profile = profile
-		entry.save()
+		with transaction.atomic():
+			if entry:
+				form.save()
+			else:
+				for upload in form.cleaned_data["images"]:
+					PortfolioEntry.objects.create(profile=profile, image=upload, caption=form.cleaned_data["caption"])
 		messages.success(request, "Portfolio image saved.")
 		return redirect("core:vendor-portfolio-manage")
 	return render(request, "core/vendor_portfolio_manage.html", {"form": form, "profile": profile, "entries": profile.portfolio_entries.all(), "editing": entry})
@@ -101,7 +153,12 @@ def vendor_listing_manage(request, listing_id=None):
 	if request.method == "POST" and form.is_valid():
 		listing = form.save(commit=False)
 		listing.profile = profile
-		listing.save()
+		with transaction.atomic():
+			listing.save()
+			form.save_m2m()
+			for upload in form.cleaned_data["gallery"]:
+				ListingImage.objects.create(listing=listing, image=upload)
+			listing.images.filter(pk__in=[value for value in request.POST.getlist("remove_images") if value.isdecimal()]).delete()
 		messages.success(request, "Listing saved.")
 		return redirect("core:vendor-listings-manage")
 	return render(request, "core/vendor_listings_manage.html", {"form": form, "profile": profile, "listings": profile.listings.all(), "editing": listing})
@@ -146,7 +203,23 @@ def event_discovery(request):
         form.save_m2m()
         messages.success(request, "Your event plan is ready. Here are your matches.")
         return redirect("core:event-matches", event_id=event.pk)
-    return render(request, "core/event_discovery.html", {"form": form})
+    categories = Category.objects.filter(is_active=True)
+    selected_values = form["required_categories"].value() or []
+    selected_category_ids = {
+        int(value.pk if isinstance(value, Category) else value)
+        for value in selected_values
+    }
+    selected_help_types = form["help_types"].value() or []
+    other_categories = categories.filter(is_featured=False)
+    return render(request, "core/event_discovery.html", {
+        "form": form,
+        "event_locations": EVENT_LOCATIONS,
+        "featured_categories": categories.filter(is_featured=True),
+        "other_categories": other_categories,
+        "selected_category_ids": selected_category_ids,
+        "show_all_services": other_categories.filter(pk__in=selected_category_ids).exists(),
+        "show_other_help_field": EventRequest.HelpType.OTHER in selected_help_types,
+    })
 
 
 @login_required

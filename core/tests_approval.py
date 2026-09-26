@@ -3,7 +3,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from accounts.models import User
-from .models import VendorProfile
+from .models import VendorProfile, Category
 
 
 class VendorApprovalSynchronizationTests(TestCase):
@@ -11,6 +11,14 @@ class VendorApprovalSynchronizationTests(TestCase):
         self.vendor = User.objects.create_user(email="approval-vendor@example.com", role=User.Role.VENDOR)
         self.other_vendor = User.objects.create_user(email="approval-other@example.com", role=User.Role.VENDOR)
         self.profile = VendorProfile.objects.create(user=self.vendor, business_name="Approval Studio", slug="approval-studio", approval_status=VendorProfile.ApprovalStatus.PENDING)
+        self.profile.primary_category = Category.objects.create(name="Approval category", slug="approval-category")
+        self.profile.contact_first_name = "Test"
+        self.profile.contact_last_name = "Vendor"
+        self.profile.business_email = self.vendor.email
+        self.profile.phone = "555-0100"
+        self.profile.city = "Toronto"
+        self.profile.description = "Event services"
+        self.profile.save()
         self.other_profile = VendorProfile.objects.create(user=self.other_vendor, business_name="Other Studio", slug="other-studio", approval_status=VendorProfile.ApprovalStatus.APPROVED)
         self.admin = User.objects.create_superuser(email="approval-admin@example.com", password="test-password")
         self.client.force_login(self.vendor)

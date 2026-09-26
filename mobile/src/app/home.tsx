@@ -5,7 +5,7 @@ import { Text, View } from 'react-native';
 import { DiscoveryScreen, ErrorNotice, Loading, discoveryStyles as styles } from '@/components/discovery-ui';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/auth-context';
-import { eventTitle, requestError, type EventRequest, type Page } from '@/types/events';
+import { eventTitle, formatEventDate, requestError, torontoDateIso, type EventRequest, type Page } from '@/types/events';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -39,17 +39,16 @@ export default function HomeScreen() {
     } catch (createError) { setError(requestError(createError)); }
     finally { setCreating(false); }
   }
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const today = torontoDateIso();
   const drafts = events.filter((event) => event.status === 'DRAFT');
   const upcoming = events.filter((event) => event.status === 'READY' && event.event_date && event.event_date >= today);
   const past = events.filter((event) => event.status === 'READY' && event.event_date && event.event_date < today);
 
   function eventCard(event: EventRequest) {
     return <View key={event.id} style={styles.card}>
-      <Text style={styles.badge}>{event.status === 'DRAFT' ? `Draft · ${event.completed_step}/6 steps saved` : 'Ready to discover'}</Text>
+      <Text style={styles.badge}>{event.status === 'DRAFT' ? `Draft | ${event.completed_step}/6 steps saved` : 'Ready to discover'}</Text>
       <Text style={styles.heading}>{eventTitle(event)}</Text>
-      <Text style={styles.body}>{[event.event_date || 'Date to come', event.city || 'Location to come'].join(' · ')}</Text>
+      <Text style={styles.body}>{formatEventDate(event.event_date)} | {event.city || 'Location to come'}</Text>
       {event.status === 'DRAFT' ? <Button label="Continue planning" variant="secondary" onPress={() => router.push({ pathname: '/plan-event', params: { id: event.id } })} /> : <Button label="Find matching vendors" variant="secondary" onPress={() => router.push({ pathname: '/event-matches', params: { id: event.id } })} />}
     </View>;
   }
@@ -61,7 +60,7 @@ export default function HomeScreen() {
     {!loading && !error && events.length === 0 && <View style={styles.card}><Text style={styles.heading}>A little room to begin</Text><Text style={styles.body}>Tell us what you have in mind. We will save your answers as you go.</Text></View>}
     {drafts.length > 0 && <><Text style={styles.heading}>Pick up where you left off</Text>{drafts.map(eventCard)}</>}
     {upcoming.length > 0 && <><Text style={styles.heading}>Upcoming events</Text>{upcoming.map(eventCard)}</>}
-    {past.length > 0 && <><Text style={styles.heading}>Past events</Text>{past.map((event) => <View key={event.id} style={styles.card}><Text style={styles.heading}>{eventTitle(event)}</Text><Text style={styles.body}>{event.event_date} · {event.city}</Text><Button label="Archive event" variant="secondary" onPress={() => { void authenticatedRequest(`/events/${event.id}/archive/`, { method: 'POST' }).then(() => load()).catch((archiveError: unknown) => setError(requestError(archiveError))); }} /></View>)}</>}
+    {past.length > 0 && <><Text style={styles.heading}>Past events</Text>{past.map((event) => <View key={event.id} style={styles.card}><Text style={styles.heading}>{eventTitle(event)}</Text><Text style={styles.body}>{formatEventDate(event.event_date)} | {event.city}</Text><Button label="Archive event" variant="secondary" onPress={() => { void authenticatedRequest(`/events/${event.id}/archive/`, { method: 'POST' }).then(() => load()).catch((archiveError: unknown) => setError(requestError(archiveError))); }} /></View>)}</>}
     {hasMore && <Button label="Load more events" variant="secondary" loading={loading} onPress={() => void load(page + 1)} />}
   </DiscoveryScreen>;
 }

@@ -158,3 +158,15 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+# Cloud backends can be configured without changing ImageField consumers.
+# Backend-specific credentials/options belong in deployment environment settings.
+import os
+import json
+STORAGES = {
+    "default": {
+        "BACKEND": os.environ.get("DEN_STORAGE_BACKEND", "django.core.files.storage.FileSystemStorage"),
+        "OPTIONS": json.loads(os.environ.get("DEN_STORAGE_OPTIONS", "{}")),
+    },
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}

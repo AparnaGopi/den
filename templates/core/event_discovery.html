@@ -9,13 +9,22 @@
     {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
     <ol class="discovery-steps">
       <li><span>1</span><fieldset><legend>What are we celebrating?</legend>{{ form.event_type.as_field_group }}{{ form.custom_event_type.as_field_group }}</fieldset></li>
-      <li><span>2</span><fieldset><legend>When and where?</legend><div class="form-grid">{{ form.event_date.as_field_group }}{{ form.city.as_field_group }}{{ form.postal_code.as_field_group }}</div><small>Do not enter a home or venue street address.</small></fieldset></li>
+      <li><span>2</span><fieldset><legend>When and where?</legend><div class="form-grid">{{ form.event_date.as_field_group }}<div>{{ form.city.as_field_group }}<datalist id="gta-locations">{% for location in event_locations %}<option value="{{ location.label }}">{% endfor %}</datalist></div>{{ form.postal_code.as_field_group }}</div><small>Do not enter a home or venue street address.</small></fieldset></li>
       <li><span>3</span><fieldset><legend>Guests and overall event budget</legend><div class="form-grid">{{ form.guest_count.as_field_group }}{{ form.budget_min.as_field_group }}{{ form.budget_max.as_field_group }}</div></fieldset></li>
-      <li><span>4</span><fieldset><legend>What help do you need?</legend><div class="choice-grid">{{ form.help_types.errors }}{{ form.help_types }}</div></fieldset></li>
-      <li><span>5</span><fieldset><legend>Which service categories matter?</legend><div class="choice-grid">{{ form.required_categories.errors }}{{ form.required_categories }}</div></fieldset></li>
+      <li><span>4</span><fieldset><legend>What help do you need?</legend><div class="choice-grid">{{ form.help_types.errors }}{{ form.help_types }}</div><div id="other-help-field"{% if not show_other_help_field %} hidden{% endif %}>{{ form.other_help_text.as_field_group }}</div></fieldset></li>
+      <li><span>5</span><fieldset><legend>Which service categories matter?</legend>{{ form.required_categories.errors }}<div class="choice-grid">{% for category in featured_categories %}<label><input type="checkbox" name="{{ form.required_categories.html_name }}" value="{{ category.pk }}"{% if category.pk in selected_category_ids %} checked{% endif %}>{{ category.name }}</label>{% endfor %}</div><details class="service-catalogue"{% if show_all_services %} open{% endif %}><summary>Browse all services</summary><div class="choice-grid">{% for category in other_categories %}<label><input type="checkbox" name="{{ form.required_categories.html_name }}" value="{{ category.pk }}"{% if category.pk in selected_category_ids %} checked{% endif %}>{{ category.get_service_group_display }}: {{ category.name }}</label>{% endfor %}</div></details></fieldset></li>
       <li><span>6</span><fieldset><legend>Style and additional details</legend><div class="form-grid">{{ form.theme.as_field_group }}{{ form.colours.as_field_group }}{{ form.venue_type.as_field_group }}</div>{{ form.notes.as_field_group }}</fieldset></li>
     </ol>
     <button type="submit" class="button button-primary">Find approved vendors</button>
   </form>
 </section>
+<script>
+  const otherHelpChoice = document.querySelector('.discovery-form input[name="help_types"][value="OTHER"]');
+  const otherHelpField = document.getElementById('other-help-field');
+  if (otherHelpChoice && otherHelpField) {
+    const updateOtherHelpField = () => { otherHelpField.hidden = !otherHelpChoice.checked; };
+    otherHelpChoice.addEventListener('change', updateOtherHelpField);
+    updateOtherHelpField();
+  }
+</script>
 {% endblock %}

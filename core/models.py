@@ -1,5 +1,7 @@
 from django.db import models
 from decimal import Decimal
+from uuid import uuid4
+from pathlib import Path
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -9,27 +11,51 @@ from accounts.models import User
 
 
 MAX_IMAGE_SIZE = 5 * 1024 * 1024
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def validate_vendor_image(upload):
 	if upload.size > MAX_IMAGE_SIZE:
 		raise ValidationError("Images must be 5 MB or smaller.")
+	if Path(upload.name).suffix.lower() not in IMAGE_EXTENSIONS:
+		raise ValidationError("Use a .jpg, .jpeg, .png or .webp file extension.")
 	try:
 		with Image.open(upload) as image:
+			if image.format not in {"JPEG", "PNG", "WEBP"}:
+				raise ValidationError("Use JPEG, PNG or WebP images.")
 			image.verify()
-	except (OSError, ValueError):
+	except (OSError, ValueError, Image.DecompressionBombError):
 		raise ValidationError("Upload a valid image file.")
+	finally:
+		upload.seek(0)
 
 
 def vendor_upload_path(instance, filename):
 	owner_id = getattr(instance, "profile_id", None) or getattr(instance, "user_id", "unassigned")
-	return f"vendors/{owner_id}/{filename}"
+	extension = Path(filename).suffix.lower()
+	return f"vendors/{owner_id}/{uuid4().hex}{extension if extension in IMAGE_EXTENSIONS else '.img'}"
 
 
 class Category(models.Model):
+	class ServiceGroup(models.TextChoices):
+		PLANNING = "PLANNING", "Planning"
+		DECOR = "DECOR", "Decor"
+		FLORALS = "FLORALS", "Florals"
+		BALLOONS = "BALLOONS", "Balloons"
+		BEAUTY = "BEAUTY", "Beauty"
+		FOOD = "FOOD", "Food"
+		PHOTO_VIDEO = "PHOTO_VIDEO", "Photography / video"
+		ENTERTAINMENT = "ENTERTAINMENT", "Entertainment"
+		RENTALS = "RENTALS", "Rentals"
+		LOGISTICS = "LOGISTICS", "Logistics"
+		OTHER = "OTHER", "Other services"
+
 	name = models.CharField(max_length=100, unique=True)
 	slug = models.SlugField(max_length=120, unique=True)
 	is_active = models.BooleanField(default=True)
+	service_group = models.CharField(max_length=20, choices=ServiceGroup.choices, default=ServiceGroup.OTHER)
+	relevant_help_types = models.JSONField(default=list, blank=True)
+	is_featured = models.BooleanField(default=False)
 
 	class Meta:
 		ordering = ("name",)
@@ -38,13 +64,58 @@ class Category(models.Model):
 		return self.name
 
 
+class VendorTag(models.Model):
+    class Kind(models.TextChoices):
+        SERVICE = "SERVICE", "Service"
+        EVENT = "EVENT", "Event type"
+    name = models.CharField(max_length=100)
+    kind = models.CharField(max_length=10, choices=Kind.choices)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("name",)
+        constraints = [models.UniqueConstraint(fields=("name", "kind"), name="unique_vendor_tag")]
+
+    def __str__(self):
+        return self.name
+
+
+class ServiceLocation(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self):
+        return self.name
+
+
 class VendorProfile(models.Model):
 	class ApprovalStatus(models.TextChoices):
 		DRAFT = "DRAFT", "Draft"
 		PENDING = "PENDING", "Pending"
 		APPROVED = "APPROVED", "Approved"
 		REJECTED = "REJECTED", "Rejected"
+		CHANGES_REQUESTED = "CHANGES_REQUESTED", "Changes requested"
 
+	PRICE_CHOICES = [("", "Select price range"), ("BUDGET", "Budget"), ("MID", "Mid-range"), ("PREMIUM", "Premium"), ("LUXURY", "Luxury")]
+	TRAVEL_CHOICES = [("", "Select travel distance"), ("LOCAL", "Local only"), ("25", "25 km"), ("50", "50 km"), ("100", "100 km"), ("250", "250 km"), ("ANY", "Open to travel")]
+	EXPERIENCE_CHOICES = [(0, "Less than a year")] + [(n, f"{n} years") for n in range(1, 51)]
+	contact_first_name = models.CharField(max_length=150, blank=True)
+	contact_last_name = models.CharField(max_length=150, blank=True)
+	business_email = models.EmailField(blank=True)
+	service_tags = models.ManyToManyField(VendorTag, blank=True, related_name="service_profiles", limit_choices_to={"kind": "SERVICE"})
+	event_tags = models.ManyToManyField(VendorTag, blank=True, related_name="event_profiles", limit_choices_to={"kind": "EVENT"})
+	service_locations = models.ManyToManyField(ServiceLocation, blank=True)
+	price_range = models.CharField(max_length=10, choices=PRICE_CHOICES, blank=True)
+	max_travel_distance = models.CharField(max_length=10, choices=TRAVEL_CHOICES, blank=True)
+	business_address = models.CharField(max_length=300, blank=True, help_text="Private: never displayed on your public profile.")
+	services_answer = models.TextField(blank=True, max_length=2000)
+	style_answer = models.TextField(blank=True, max_length=2000)
+	experience_answer = models.TextField(blank=True, max_length=2000)
+	specialties_answer = models.TextField(blank=True, max_length=2000)
+	review_feedback = models.TextField(blank=True, help_text="Feedback visible to the vendor.")
 	user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="vendor_profile")
 	business_name = models.CharField(max_length=160)
 	phone = models.CharField(max_length=30, blank=True)
@@ -78,6 +149,26 @@ class VendorProfile(models.Model):
 		if self.user_id and self.user.role != User.Role.VENDOR:
 			raise ValidationError({"user": "Only vendor accounts can own vendor profiles."})
 
+	IDENTITY_FIELDS = ("business_name", "primary_category_id", "contact_first_name", "contact_last_name", "business_email", "phone", "profile_image", "website_url", "instagram_url", "google_business_url")
+
+	def save(self, *args, **kwargs):
+		if self.pk:
+			previous = type(self).objects.filter(pk=self.pk).first()
+			if previous and previous.is_approved and any(str(getattr(previous, field)) != str(getattr(self, field)) for field in self.IDENTITY_FIELDS):
+				self.approval_status = self.ApprovalStatus.PENDING
+				if kwargs.get("update_fields"):
+					kwargs["update_fields"] = set(kwargs["update_fields"]) | {"approval_status"}
+		super().save(*args, **kwargs)
+
+	def submission_errors(self):
+		errors = {}
+		for field in ("business_name", "contact_first_name", "contact_last_name", "business_email", "phone", "city", "description", "primary_category"):
+			if not getattr(self, field):
+				errors[field] = "Complete this field before submitting."
+		if self.primary_category_id and not self.primary_category.is_active:
+			errors["primary_category"] = "Choose an active category."
+		return errors
+
 	@property
 	def is_approved(self):
 		return self.approval_status == self.ApprovalStatus.APPROVED
@@ -110,11 +201,14 @@ class Listing(models.Model):
 	class PricingType(models.TextChoices):
 		FIXED = "FIXED", "Fixed"
 		STARTING_FROM = "STARTING_FROM", "Starting from"
-		HOURLY = "HOURLY", "Hourly"
+		HOURLY = "HOURLY", "Per hour"
+		PER_PERSON = "PER_PERSON", "Per person"
+		PER_ITEM = "PER_ITEM", "Per item"
 		CONTACT_FOR_QUOTE = "CONTACT_FOR_QUOTE", "Contact for quote"
 
 	profile = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name="listings")
 	listing_type = models.CharField(max_length=20, choices=ListingType.choices)
+	service_tags = models.ManyToManyField(VendorTag, blank=True, limit_choices_to={"kind": "SERVICE"})
 	help_types = models.JSONField(default=list, blank=True, help_text="Event services this listing provides.")
 	title = models.CharField(max_length=160)
 	category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="listings", null=True, blank=True)
@@ -142,7 +236,14 @@ class Listing(models.Model):
 	def __str__(self):
 		return self.title
 
-# Create your models here.
+class ListingImage(models.Model):
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="images")
+    image = models.ImageField(upload_to=vendor_upload_path, validators=[validate_vendor_image])
+
+    @property
+    def profile_id(self):
+        return self.listing.profile_id
+
 
 
 class EventRequest(models.Model):
@@ -155,15 +256,34 @@ class EventRequest(models.Model):
         OTHER = "OTHER", "Something else"
 
     class HelpType(models.TextChoices):
-        FULL_PLANNING = "FULL_PLANNING", "Full planning"
+        EVENT_PLANNER = "EVENT_PLANNER", "Event planner"
+        EVENT_COORDINATOR = "EVENT_COORDINATOR", "Event coordinator"
+        DECORATOR = "DECORATOR", "Decorator"
+        FLORIST = "FLORIST", "Florist"
+        BALLOON_ARTIST = "BALLOON_ARTIST", "Balloon artist"
+        MAKEUP_ARTIST = "MAKEUP_ARTIST", "Makeup artist"
+        HAIRSTYLIST = "HAIRSTYLIST", "Hairstylist"
+        CATERER = "CATERER", "Caterer"
+        PRIVATE_CHEF = "PRIVATE_CHEF", "Private chef"
+        PHOTOGRAPHER = "PHOTOGRAPHER", "Photographer"
+        VIDEOGRAPHER = "VIDEOGRAPHER", "Videographer"
+        ENTERTAINMENT = "ENTERTAINMENT", "DJ / live entertainment"
+        KIDS_ENTERTAINMENT = "KIDS_ENTERTAINMENT", "Kids' party entertainment"
+        CAKE_DESSERTS = "CAKE_DESSERTS", "Cake / desserts"
+        VENUE = "VENUE", "Venue"
+        RENTAL_ITEMS = "RENTAL_ITEMS", "Decor / equipment rentals"
+        DELIVERY_PICKUP = "DELIVERY_PICKUP", "Delivery / pickup"
+        SETUP_TEARDOWN = "SETUP_TEARDOWN", "Setup / teardown"
+        FULL_PLANNING = "FULL_PLANNING", "Full-service planning"
+        OTHER = "OTHER", "Other — please specify"
+
+        # Retained values keep previously saved event and listing data valid.
         PARTIAL_PLANNING = "PARTIAL_PLANNING", "Some planning help"
         VENDORS_ONLY = "VENDORS_ONLY", "Find vendors"
         RENTALS = "RENTALS", "Rentals"
         PRODUCTS = "PRODUCTS", "Products"
         PLANNER = "PLANNER", "Planner"
-        DECORATOR = "DECORATOR", "Decorator"
         COMPLETE_SERVICE = "COMPLETE_SERVICE", "Complete service"
-        RENTAL_ITEMS = "RENTAL_ITEMS", "Rental items only"
         CATERING = "CATERING", "Catering"
         OTHER_SERVICES = "OTHER_SERVICES", "Other event services"
 
@@ -187,6 +307,7 @@ class EventRequest(models.Model):
     budget_min = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(Decimal("0"))])
     budget_max = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(Decimal("0"))])
     help_types = models.JSONField(default=list, blank=True)
+    other_help_text = models.CharField(max_length=500, blank=True)
     required_categories = models.ManyToManyField(Category, related_name="event_requests", blank=True)
     theme = models.CharField(max_length=200, blank=True)
     colours = models.JSONField(default=list, blank=True)

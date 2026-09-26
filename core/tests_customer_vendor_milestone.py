@@ -77,7 +77,7 @@ class VendorBasicProfileAPITests(APITestCase):
         self.assertEqual(self.profile.business_name, "New Name")
         self.assertEqual(self.profile.slug, "new-name")
         self.assertEqual(self.profile.primary_category, self.category)
-        self.assertEqual(self.profile.approval_status, VendorProfile.ApprovalStatus.APPROVED)
+        self.assertEqual(self.profile.approval_status, VendorProfile.ApprovalStatus.PENDING)
         self.assertEqual(self.profile.tags, "private-to-mobile")
         self.assertEqual(self.profile.availability, "Weekends")
         self.assertEqual(self.other_profile.business_name, "Other")
@@ -95,6 +95,17 @@ class VendorBasicProfileAPITests(APITestCase):
         self.client.force_authenticate(self.vendor)
         categories = self.client.get(reverse("api-v1:categories"))
         self.assertEqual(categories.status_code, 200)
+        bouquets = next(item for item in categories.data if item["name"] == "Bouquets")
+        response = self.client.patch(self.url, {"category": self.category.pk, "additional_categories": [bouquets["id"]]}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["additional_categories"], [bouquets["id"]])
+        self.profile.refresh_from_db()
+        self.assertEqual(list(self.profile.additional_categories.values_list("pk", flat=True)), [bouquets["id"]])
+        cleared = self.client.patch(self.url, {"clear_additional_categories": "true"}, format="multipart")
+        self.assertEqual(cleared.status_code, 200, cleared.data)
+        self.assertEqual(cleared.data["additional_categories"], [])
+        self.profile.refresh_from_db()
+        self.assertFalse(self.profile.additional_categories.exists())
         response = self.client.patch(self.url, {"profile_image": picture()}, format="multipart")
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(response.data["profile_image_url"].endswith(".jpg"))
@@ -126,6 +137,44 @@ class MatchingConsistencyTests(TestCase):
         self.profile.listings.update(help_types=[EventRequest.HelpType.CATERING])
         self.assertEqual(self.api.get(self.api_url).data["count"], 1)
         self.assertEqual(self.api.get(self.api_url, {"service": "PLANNER"}).data["count"], 0)
+
+    def test_toronto_district_alias_matches_toronto_vendor_service_area(self):
+        self.event.city = "North York"
+        self.event.save(update_fields=["city"])
+        response = self.api.get(self.api_url)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], self.profile.pk)
+
+    def test_approved_active_gta_decorator_matches_north_york_on_web_and_mobile_api(self):
+        decor_category = Category.objects.create(name="Event Decor", slug="event-decor")
+        vendor_user = User.objects.create_user(email="toronto-decor-den@example.com", role=User.Role.VENDOR)
+        vendor = VendorProfile.objects.create(
+            user=vendor_user, business_name="Toronto Decor Den", slug="toronto-decor-den",
+            primary_category=decor_category, city="Toronto", service_area="GTA",
+            description="Event decor across the Greater Toronto Area.",
+            approval_status=VendorProfile.ApprovalStatus.APPROVED, is_active=True,
+        )
+        Listing.objects.create(
+            profile=vendor, listing_type=Listing.ListingType.SERVICE, title="Birthday decorating",
+            category=decor_category, help_types=[EventRequest.HelpType.DECORATOR], image="test.jpg",
+            description="Decorating for birthdays.", pricing_type=Listing.PricingType.CONTACT_FOR_QUOTE,
+            is_active=True,
+        )
+        self.event.event_type = EventRequest.EventType.BIRTHDAY
+        self.event.city = "North York"
+        self.event.help_types = [EventRequest.HelpType.DECORATOR]
+        self.event.required_categories.set([decor_category])
+        self.event.budget_min = Decimal("500")
+        self.event.budget_max = Decimal("700")
+        self.event.save()
+
+        mobile_response = self.api.get(self.api_url)
+        web_response = self.client.get(self.web_url)
+        mobile_ids = [item["id"] for item in mobile_response.data["results"]]
+        web_ids = [item["id"] for item in web_response.context["matches"]]
+        self.assertIn(vendor.pk, mobile_ids)
+        self.assertIn(vendor.pk, web_ids)
+        self.assertEqual(mobile_ids, web_ids)
 
     def test_verified_rating_filters_have_identical_web_and_api_results(self):
         Review.objects.create(event=self.event, vendor=self.profile, rating=1, comment="Unverified")

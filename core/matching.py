@@ -7,6 +7,7 @@ from django.urls import reverse
 
 from accounts.models import User
 from core.models import Category, EventRequest, Listing, VendorProfile
+from core.event_rules import canonical_event_location, resolve_event_location
 
 
 HELP_LISTING_TYPES = {
@@ -21,10 +22,57 @@ HELP_LISTING_TYPES = {
     EventRequest.HelpType.RENTAL_ITEMS: {Listing.ListingType.RENTAL},
     EventRequest.HelpType.CATERING: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE, Listing.ListingType.PRODUCT},
     EventRequest.HelpType.OTHER_SERVICES: set(Listing.ListingType.values),
+    EventRequest.HelpType.EVENT_PLANNER: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE},
+    EventRequest.HelpType.EVENT_COORDINATOR: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE},
+    EventRequest.HelpType.FLORIST: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE, Listing.ListingType.PRODUCT},
+    EventRequest.HelpType.BALLOON_ARTIST: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE, Listing.ListingType.PRODUCT},
+    EventRequest.HelpType.MAKEUP_ARTIST: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE},
+    EventRequest.HelpType.HAIRSTYLIST: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE},
+    EventRequest.HelpType.CATERER: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE, Listing.ListingType.PRODUCT},
+    EventRequest.HelpType.PRIVATE_CHEF: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE},
+    EventRequest.HelpType.PHOTOGRAPHER: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE},
+    EventRequest.HelpType.VIDEOGRAPHER: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE},
+    EventRequest.HelpType.ENTERTAINMENT: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE},
+    EventRequest.HelpType.KIDS_ENTERTAINMENT: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE},
+    EventRequest.HelpType.CAKE_DESSERTS: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE, Listing.ListingType.PRODUCT},
+    EventRequest.HelpType.VENUE: {Listing.ListingType.SERVICE, Listing.ListingType.PACKAGE, Listing.ListingType.RENTAL},
+    EventRequest.HelpType.DELIVERY_PICKUP: set(Listing.ListingType.values),
+    EventRequest.HelpType.SETUP_TEARDOWN: set(Listing.ListingType.values),
+    EventRequest.HelpType.OTHER: set(Listing.ListingType.values),
 }
 
 
-SPECIFIC_HELP = {"PLANNER", "DECORATOR", "CATERING", "COMPLETE_SERVICE"}
+HELP_COMPATIBILITY = {
+    "PLANNER": {"PLANNER", "EVENT_PLANNER", "EVENT_COORDINATOR", "FULL_PLANNING", "PARTIAL_PLANNING", "COMPLETE_SERVICE"},
+    "PARTIAL_PLANNING": {"PARTIAL_PLANNING", "EVENT_COORDINATOR", "PLANNER", "COMPLETE_SERVICE"},
+    "DECORATOR": {"DECORATOR"},
+    "CATERING": {"CATERING", "CATERER", "PRIVATE_CHEF", "CAKE_DESSERTS"},
+    "COMPLETE_SERVICE": {"COMPLETE_SERVICE", "FULL_PLANNING"},
+    "EVENT_PLANNER": {"EVENT_PLANNER", "PLANNER", "FULL_PLANNING", "COMPLETE_SERVICE"},
+    "EVENT_COORDINATOR": {"EVENT_COORDINATOR", "PARTIAL_PLANNING", "PLANNER", "COMPLETE_SERVICE"},
+    "DECORATOR": {"DECORATOR"},
+    "FLORIST": {"FLORIST"},
+    "BALLOON_ARTIST": {"BALLOON_ARTIST"},
+    "MAKEUP_ARTIST": {"MAKEUP_ARTIST"},
+    "HAIRSTYLIST": {"HAIRSTYLIST"},
+    "CATERER": {"CATERER", "CATERING"},
+    "PRIVATE_CHEF": {"PRIVATE_CHEF", "CATERING"},
+    "PHOTOGRAPHER": {"PHOTOGRAPHER"},
+    "VIDEOGRAPHER": {"VIDEOGRAPHER"},
+    "ENTERTAINMENT": {"ENTERTAINMENT"},
+    "KIDS_ENTERTAINMENT": {"KIDS_ENTERTAINMENT", "OTHER_SERVICES"},
+    "CAKE_DESSERTS": {"CAKE_DESSERTS", "CATERING"},
+    "VENUE": {"VENUE"},
+    "RENTAL_ITEMS": {"RENTAL_ITEMS", "RENTALS"},
+    "DELIVERY_PICKUP": {"DELIVERY_PICKUP", "OTHER_SERVICES"},
+    "SETUP_TEARDOWN": {"SETUP_TEARDOWN", "OTHER_SERVICES"},
+    "FULL_PLANNING": {"FULL_PLANNING", "COMPLETE_SERVICE"},
+    "OTHER": {"OTHER", "OTHER_SERVICES"},
+}
+LEGACY_BROAD_HELP = {
+    "FULL_PLANNING", "PARTIAL_PLANNING", "VENDORS_ONLY", "RENTALS",
+    "PRODUCTS", "RENTAL_ITEMS", "OTHER_SERVICES",
+}
 
 
 def provides_help(listing, requested):
@@ -33,7 +81,10 @@ def provides_help(listing, requested):
     for service in requested:
         if listing.listing_type not in HELP_LISTING_TYPES.get(service, set()):
             continue
-        if service not in SPECIFIC_HELP or service in listing.help_types:
+        if service in LEGACY_BROAD_HELP:
+            return True
+        supported_types = HELP_COMPATIBILITY.get(service)
+        if supported_types is None or supported_types.intersection(listing.help_types):
             return True
     return False
 
@@ -43,9 +94,22 @@ def normalized(value):
 
 
 def serves_location(profile, location):
-    target = normalized(location)
-    areas = re.split(r"[,;/\n]", f"{profile.service_area},{profile.areas_served}")
-    return bool(target) and (normalized(profile.city) == target or any(normalized(area) == target for area in areas))
+    target_location = resolve_event_location(location)
+    target = normalized(canonical_event_location(location))
+    if not target:
+        return False
+    areas = re.split(r"[,;/\n]", f"{profile.service_area},{profile.areas_served}," + ",".join(area.name for area in profile.service_locations.all()))
+    profile_city = normalized(canonical_event_location(profile.city))
+    if profile_city == target:
+        return True
+    gta_labels = {"gta", "greater toronto area", "greater toronto area (gta)"}
+    for area in areas:
+        area_value = normalized(area)
+        if area_value in gta_labels and target_location:
+            return True
+        if normalized(canonical_event_location(area)) == target:
+            return True
+    return False
 
 
 def public_vendors():
@@ -74,12 +138,13 @@ def matching_vendors(event, filters, request):
         verified_rating=Avg("reviews__rating", filter=Q(reviews__is_verified=True)),
         review_count=Count("reviews", filter=Q(reviews__is_verified=True), distinct=True),
     ).select_related("primary_category").prefetch_related(
+        "service_locations",
         Prefetch("additional_categories", queryset=Category.objects.filter(is_active=True)),
         Prefetch("listings", queryset=active_listings, to_attr="discovery_listings"),
     )
     results = []
     for profile in profiles:
-        if not serves_location(profile, event.city):
+        if not serves_location(profile, canonical_event_location(event.city)):
             continue
         if filters.get("location") and not serves_location(profile, filters["location"]):
             continue

@@ -5,6 +5,9 @@ from . import views
 app_name = "core"
 
 urlpatterns = [
+    path("vendor/profile/preview/", views.vendor_profile_preview, name="vendor-profile-preview"),
+    path("vendor/profile/submit/", views.vendor_profile_submit, name="vendor-profile-submit"),
+    path("vendor/profile/description/", views.vendor_description_create, name="vendor-description-create"),
     path("", views.home, name="home"),
     path("dashboard/customer/", views.customer_dashboard, name="customer-dashboard"),
     path("dashboard/vendor/", views.vendor_dashboard, name="vendor-dashboard"),

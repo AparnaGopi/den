@@ -1,0 +1,9 @@
+{% load static %}
+<style>
+.vendor-field{margin:1rem 0}.vendor-field>label{display:block;font-weight:600;margin-bottom:.4rem}
+.management-form div[id]:has(input[type=checkbox]){display:flex;flex-wrap:wrap;gap:.5rem}
+.management-form div[id] label:has(input[type=checkbox]){display:inline-flex;align-items:center;gap:.4rem;border:1px solid #b9aca3;border-radius:24px;padding:.5rem .9rem;cursor:pointer}
+.management-form label:has(input[type=checkbox]:checked){background:#f4ded4;border-color:#a64d35}
+.upload-previews{display:flex;flex-wrap:wrap;gap:1rem}.upload-previews img{width:120px;height:120px;object-fit:cover;border-radius:12px}.upload-previews figure{margin:0}
+</style>
+<script src="{% static 'js/vendor-editor.js' %}" defer></script>

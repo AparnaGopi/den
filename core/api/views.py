@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 from accounts.models import User
 from core.matching import matching_vendors, public_vendors
 from core.models import Category, EventRequest, Review, VendorProfile
+from core.event_rules import EVENT_LOCATIONS
 from .serializers import EventRequestSerializer, MatchFilterSerializer, STEP_FIELDS, VendorBasicProfileSerializer, ReviewSubmissionSerializer
 
 
@@ -143,7 +144,23 @@ class CategoryListView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
 
     def get(self, request):
-        return Response(list(Category.objects.filter(is_active=True).values("id", "name", "slug")))
+        categories = Category.objects.filter(is_active=True)
+        return Response([{
+            "id": category.pk,
+            "name": category.name,
+            "slug": category.slug,
+            "service_group": category.service_group,
+            "service_group_label": category.get_service_group_display(),
+            "relevant_help_types": category.relevant_help_types,
+            "is_featured": category.is_featured,
+        } for category in categories])
+
+
+class EventLocationListView(APIView):
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request):
+        return Response(EVENT_LOCATIONS)
 
 
 class VendorBasicProfileView(APIView):
@@ -156,15 +173,17 @@ class VendorBasicProfileView(APIView):
             raise PermissionDenied("Only vendors can manage a vendor profile.")
         profile, _ = VendorProfile.objects.get_or_create(
             user=request.user,
-            defaults={"business_name": request.user.email.split("@")[0], "slug": f"vendor-{request.user.pk}", "city": "", "service_area": "", "description": ""},
+            defaults={"business_name": request.user.email.split("@")[0], "slug": f"vendor-{request.user.pk}", "city": "", "service_area": "", "description": "", "contact_first_name": request.user.first_name, "contact_last_name": request.user.last_name, "business_email": request.user.email},
         )
         return profile
 
     def get(self, request):
         return Response(VendorBasicProfileSerializer(self.profile(request), context={"request": request}).data)
 
+    @transaction.atomic
     def patch(self, request):
         profile = self.profile(request)
+        profile = VendorProfile.objects.select_for_update().get(pk=profile.pk)
         serializer = VendorBasicProfileSerializer(profile, data=request.data, partial=True, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -187,3 +206,53 @@ class EventReviewView(CustomerEventsMixin, APIView):
         data.is_valid(raise_exception=True)
         review = Review.objects.create(event=event, vendor=vendor, **data.validated_data)
         return Response({"id": review.pk, "is_verified": False}, status=status.HTTP_201_CREATED)
+
+
+class VendorOptionsView(VendorBasicProfileView):
+    http_method_names = ("get", "head", "options")
+
+    def get(self, request):
+        self.profile(request)
+        from core.models import VendorTag, ServiceLocation
+        return Response({
+            "service_tags": list(VendorTag.objects.filter(is_active=True, kind="SERVICE").values("id", "name")),
+            "locations": list(ServiceLocation.objects.filter(is_active=True).values("id", "name")),
+        })
+
+
+class VendorPortfolioView(VendorBasicProfileView):
+    http_method_names = ("get", "post", "patch", "delete", "head", "options")
+
+    def get(self, request, pk=None):
+        from .serializers import PortfolioSerializer
+        entries = self.profile(request).portfolio_entries.all()
+        if pk is not None:
+            return Response(PortfolioSerializer(get_object_or_404(entries, pk=pk), context={"request": request}).data)
+        return Response(PortfolioSerializer(entries, many=True, context={"request": request}).data)
+
+    def post(self, request, pk=None):
+        if pk is not None:
+            return Response(status=405)
+        from .serializers import PortfolioSerializer
+        profile = self.profile(request)
+        serializer = PortfolioSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save(profile=profile)
+        return Response(serializer.data, status=201)
+
+    def patch(self, request, pk=None):
+        if pk is None:
+            return Response(status=405)
+        from .serializers import PortfolioSerializer
+        entry = get_object_or_404(self.profile(request).portfolio_entries, pk=pk)
+        serializer = PortfolioSerializer(entry, data=request.data, partial=True, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, pk=None):
+        if pk is None:
+            return Response(status=405)
+        entry = get_object_or_404(self.profile(request).portfolio_entries, pk=pk)
+        entry.delete()
+        return Response(status=204)

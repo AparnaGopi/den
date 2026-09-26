@@ -12,14 +12,16 @@
             <p>Your profile is approved and visible to customers.</p>
         {% elif vendor_profile.approval_status == vendor_profile.ApprovalStatus.PENDING %}
             <div class="approval-note">Your profile is pending review. Your profile is private until an admin approves it.</div>
+        {% elif vendor_profile.approval_status == vendor_profile.ApprovalStatus.CHANGES_REQUESTED %}
+            <div class="approval-note">An admin requested changes. {{ vendor_profile.review_feedback }} Edit, preview and resubmit your profile.</div>
         {% elif vendor_profile.approval_status == vendor_profile.ApprovalStatus.REJECTED %}
             <div class="approval-note">Your profile was rejected. Update your profile and submit it for review.</div>
         {% else %}
-            <div class="approval-note">Your profile is a draft. Complete and save your profile to submit it for review.</div>
+            <div class="approval-note">Your profile is a draft. Complete your profile, preview it, then submit it for review.</div>
         {% endif %}
     {% else %}
         <div class="customer-dashboard-actions"><a class="button button-primary" href="{% url 'core:event-discovery' %}">Plan an event</a></div>
-        <div class="event-card-grid">{% for event in event_requests %}<article class="event-card"><span class="approval-badge">{{ event.get_status_display }} ? {{ event.completed_step }}/6 steps</span><h2>{{ event.get_event_type_display|default:"Your event" }}</h2><p>{{ event.event_date|default:"Date to come" }} ? {{ event.city|default:"Location to come" }}</p>{% if event.status == "READY" %}<a class="button button-secondary" href="{% url 'core:event-matches' event.pk %}">View vendor matches</a>{% else %}<a class="button button-secondary" href="{% url 'core:event-discovery' %}?event_id={{ event.pk }}">Continue planning</a>{% endif %}</article>{% empty %}<div class="empty-state"><span class="empty-icon">+</span><h2>Plan your first event</h2><p>Answer a few guided questions and meet approved local vendors.</p></div>{% endfor %}</div>
+        <div class="event-card-grid">{% for event in event_requests %}<article class="event-card"><span class="approval-badge">{{ event.get_status_display }} | {{ event.completed_step }}/6 steps</span><h2>{{ event.get_event_type_display|default:"Your event" }}</h2><p>{% if event.event_date %}{{ event.event_date|date:"M j, Y" }}{% else %}Date to come{% endif %} | {{ event.display_city|default:"Location to come" }}</p>{% if event.status == "READY" %}<a class="button button-secondary" href="{% url 'core:event-matches' event.pk %}">View vendor matches</a>{% else %}<a class="button button-secondary" href="{% url 'core:event-discovery' %}?event_id={{ event.pk }}">Continue planning</a>{% endif %}</article>{% empty %}<div class="empty-state"><span class="empty-icon">+</span><h2>Plan your first event</h2><p>Answer a few guided questions and meet approved local vendors.</p></div>{% endfor %}</div>
     {% endif %}
 </section>
 {% endblock %}

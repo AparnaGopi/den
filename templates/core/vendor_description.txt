@@ -1,0 +1,7 @@
+{% autoescape off %}{{ vendor.business_name }}{% if vendor.primary_category %} offers {{ vendor.primary_category.name|lower }} services{% endif %}{% if vendor.city %} in {{ vendor.city }}{% endif %}.{% if vendor.service_tags %} Our services include {% for tag in vendor.service_tags %}{{ tag.name|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}{% if vendor.event_tags %} We work with clients on {% for tag in vendor.event_tags %}{{ tag.name|lower }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}
+{% if vendor.services_answer %}{{ vendor.services_answer }}
+{% endif %}{% if vendor.style_answer %}Our approach: {{ vendor.style_answer }}
+{% endif %}{% if vendor.years_experience %}We bring {{ vendor.years_experience }} years of experience to our work.
+{% endif %}{% if vendor.experience_answer %}{{ vendor.experience_answer }}
+{% endif %}{% if vendor.specialties_answer %}Our specialties: {{ vendor.specialties_answer }}
+{% endif %}Contact us to discuss your event and request a personalized quote.{% endautoescape %}

@@ -187,3 +187,40 @@ cd mobile
 npm run lint
 npm run typecheck
 ```
+
+
+### Vendor onboarding (Django + Expo)
+
+Run `python manage.py migrate` to apply the additive profile migration and seed
+service/event tags. Existing category, logo (`profile_image`), cover, portfolio,
+listing prices and free-text location/tag data are preserved. Existing account
+contact details and service areas are copied into the new structured fields.
+Admins manage categories, vendor tags and service locations in Django admin;
+add cities/service areas there for the autocomplete and selection chips.
+
+Vendors save drafts at `/vendor/profile/`, preview at `/vendor/profile/preview/`,
+and explicitly submit for review. Admins can approve complete profiles, reject,
+or request changes with `review_feedback`. Changes to company name, contact
+identity, logo, primary category or business links requeue approved profiles.
+Customer discovery continues to require approval. Business addresses are private
+and never included in public profiles or the mobile profile response. No location
+coordinates are collected.
+
+The description button uses `templates/core/vendor_description.txt` and makes no
+external AI request. Vendors can edit the resulting draft before saving. Uploads
+accept verified JPEG, PNG and WebP files, up to 5 MB each (20 images per web batch).
+Portfolio captions can be edited individually after a batch upload.
+
+Expo uses the existing authenticated `/api/v1/vendor/profile/` endpoint plus
+`vendor/options/` and `vendor/portfolio/`. Profile edits and portfolio mutations
+are scoped to the authenticated vendor. The full web editor requires web login;
+the mobile link does not transfer authentication tokens.
+
+Media uses Django's local filesystem storage by default. For a future cloud
+backend, install its Django storage package and configure `DEN_STORAGE_BACKEND`
+and `DEN_STORAGE_OPTIONS` (a JSON object); credentials belong in deployment
+configuration. Removed images are unlinked from profiles/listings; physical
+orphan-file cleanup remains a storage maintenance task.
+
+Validation: `python manage.py check`, `python manage.py test --noinput`, and,
+from `mobile/`, `npm run lint` and `npm run typecheck`.
