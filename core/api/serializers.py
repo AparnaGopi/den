@@ -102,6 +102,8 @@ class MatchFilterSerializer(serializers.Serializer):
     rating_min = serializers.DecimalField(max_digits=2, decimal_places=1, min_value=0, max_value=5, required=False)
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.filter(is_active=True), required=False)
     service = serializers.ChoiceField(choices=EventRequest.HelpType.choices, required=False)
+    help_types = serializers.ListField(child=serializers.ChoiceField(choices=EventRequest.HelpType.choices), required=False, max_length=24)
+    service_tag = serializers.PrimaryKeyRelatedField(queryset=VendorTag.objects.filter(is_active=True, kind=VendorTag.Kind.SERVICE), required=False)
     listing_type = serializers.ChoiceField(choices=Listing.ListingType.choices, required=False)
     location = serializers.CharField(max_length=100, required=False)
     price_min = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=0, required=False)

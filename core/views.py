@@ -11,8 +11,38 @@ from accounts.models import User
 
 from .forms import EventDiscoveryForm, ListingForm, MatchWebFilterForm, PortfolioEntryForm, VendorProfileForm, PortfolioBatchForm
 from .event_rules import EVENT_LOCATIONS, event_location_display
-from .matching import matching_vendors, public_vendors
+from .matching import HELP_COMPATIBILITY, HELP_LISTING_TYPES, LEGACY_BROAD_HELP, matching_vendors, public_vendors
 from .models import Category, EventRequest, Listing, PortfolioEntry, VendorProfile, ServiceLocation, ListingImage
+
+
+def discovery_service_options():
+    listings = Listing.objects.filter(profile__in=public_vendors(), is_active=True, service_tags__is_active=True).values_list("service_tags__pk", "service_tags__name", "help_types", "listing_type")
+    service_types = {}
+    for tag_id, tag_name, listing_help_types, listing_type in listings:
+        option = service_types.setdefault(tag_id, {"id": tag_id, "name": tag_name, "help_types": set(), "listing_types": set()})
+        option["help_types"].update(listing_help_types)
+        option["listing_types"].add(listing_type)
+    for option in service_types.values():
+        listing_help_types = option["help_types"]
+        provider_types = set(HELP_COMPATIBILITY) | LEGACY_BROAD_HELP
+        option["help_types"] = sorted(
+            help_type for help_type in provider_types
+            if HELP_COMPATIBILITY.get(help_type, set()).intersection(listing_help_types)
+            or help_type in LEGACY_BROAD_HELP and HELP_LISTING_TYPES.get(help_type, set()).intersection(option["listing_types"])
+        )
+        del option["listing_types"]
+    return list(service_types.values())
+
+
+def discovery_filter_count(form):
+    if not form.is_valid():
+        return 0
+    count = len(form.cleaned_data["help_types"])
+    count += sum(
+        form.cleaned_data.get(field) not in (None, "")
+        for field in ("service_tag", "other_help_text", "location", "price_min", "price_max", "rating_min")
+    )
+    return count
 
 
 def home(request):
@@ -227,14 +257,48 @@ def event_matches(request, event_id):
     if request.user.role != User.Role.CUSTOMER:
         raise PermissionDenied
     event = get_object_or_404(EventRequest.objects.prefetch_related("required_categories"), pk=event_id, customer=request.user, status=EventRequest.Status.READY)
-    form = MatchWebFilterForm(request.GET)
+    event_help_types = list(event.help_types)
+    initial = {"help_types": event_help_types}
+    if EventRequest.HelpType.OTHER in event_help_types:
+        initial["other_help_text"] = event.other_help_text
+    form_data = request.GET.copy()
+    if not request.GET.get("filters_applied") and "help_types" not in request.GET:
+        form_data.setlist("help_types", event_help_types)
+        if EventRequest.HelpType.OTHER in event_help_types and "other_help_text" not in request.GET:
+            form_data["other_help_text"] = event.other_help_text
+    form = MatchWebFilterForm(form_data if request.GET else initial)
     matches = []
+    selected_help_types = form["help_types"].value() or []
     if form.is_valid():
         filters = {key: value for key, value in form.cleaned_data.items() if value not in (None, "")}
+        filters["other_help_text"] = form.cleaned_data["other_help_text"]
         filters.setdefault("approval_status", VendorProfile.ApprovalStatus.APPROVED)
         filters.setdefault("sort", "relevance")
         matches = matching_vendors(event, filters, request)
-    return render(request, "core/event_matches.html", {"event": event, "filter_form": form, "matches": matches, "rating_available": any(item["rating"] is not None for item in matches), "saved_vendor_ids": set(event.saved_vendors.values_list("pk", flat=True))})
+    return render(request, "core/event_matches.html", {"event": event, "filter_form": form, "matches": matches, "rating_available": any(item["rating"] is not None for item in matches), "saved_vendor_ids": set(event.saved_vendors.values_list("pk", flat=True)), "service_options": discovery_service_options(), "selected_help_types": selected_help_types, "active_filter_count": discovery_filter_count(form)})
+
+
+@login_required
+def vendor_discovery(request):
+    if request.user.role != User.Role.CUSTOMER:
+        raise PermissionDenied
+    form = MatchWebFilterForm(request.GET)
+    vendors = []
+    selected_help_types = form["help_types"].value() or []
+    if form.is_valid():
+        filters = {key: value for key, value in form.cleaned_data.items() if value not in (None, "", [])}
+        filters["other_help_text"] = form.cleaned_data["other_help_text"]
+        filters.setdefault("approval_status", VendorProfile.ApprovalStatus.APPROVED)
+        filters.setdefault("sort", "relevance")
+        vendors = matching_vendors(None, filters, request)
+    return render(request, "core/vendor_discovery.html", {
+        "filter_form": form,
+        "matches": vendors,
+        "active_filter_count": discovery_filter_count(form),
+        "rating_available": any(item["rating"] is not None for item in vendors),
+        "service_options": discovery_service_options(),
+        "selected_help_types": selected_help_types,
+    })
 
 
 @require_POST

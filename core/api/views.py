@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from core.matching import matching_vendors, public_vendors
-from core.models import Category, EventRequest, Review, VendorProfile
+from core.models import Category, EventRequest, Review, VendorProfile, VendorTag
 from core.event_rules import EVENT_LOCATIONS
 from .serializers import EventRequestSerializer, MatchFilterSerializer, STEP_FIELDS, VendorBasicProfileSerializer, ReviewSubmissionSerializer
 
@@ -121,6 +121,34 @@ class EventMatchesView(CustomerEventsMixin, APIView):
             "price_note": "Published prices are indicative. Hourly and quote-only listings need more details; an event budget is not a booking quote.",
         })
         return response
+
+
+class VendorDiscoveryView(APIView):
+    permission_classes = (permissions.IsAuthenticated, IsCustomer)
+
+    def get(self, request):
+        filters = MatchFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        results = matching_vendors(None, filters.validated_data, request)
+        paginator = DiscoveryPagination()
+        page = paginator.paginate_queryset(results, request, view=self)
+        response = paginator.get_paginated_response(page)
+        response.data.update({
+            "rating_available": any(item["rating"] is not None for item in results),
+            "requested_sort": filters.validated_data["sort"],
+            "applied_sort": filters.validated_data["sort"],
+            "matching_version": 2,
+            "price_note": "Published prices are indicative. Hourly and quote-only listings need more details; listing prices are not booking quotes.",
+        })
+        return response
+
+
+class DiscoveryServiceTagListView(APIView):
+    permission_classes = (permissions.IsAuthenticated, IsCustomer)
+
+    def get(self, request):
+        tags = VendorTag.objects.filter(is_active=True, kind=VendorTag.Kind.SERVICE).values("id", "name")
+        return Response(list(tags))
 
 
 class EventSavedVendorView(CustomerEventsMixin, APIView):

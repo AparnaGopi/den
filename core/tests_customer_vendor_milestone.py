@@ -10,7 +10,7 @@ from io import BytesIO
 from rest_framework.test import APITestCase
 
 from accounts.models import User
-from core.models import Category, EventRequest, Listing, Review, VendorProfile
+from core.models import Category, EventRequest, Listing, Review, VendorProfile, VendorTag
 
 
 def picture():
@@ -49,6 +49,85 @@ class CustomerWebDiscoveryTests(TestCase):
         self.assertNotContains(self.client.get(reverse("core:event-matches", args=[event.pk])), "Table Studio")
         foreign = EventRequest.objects.create(customer=self.other, status=EventRequest.Status.READY)
         self.assertEqual(self.client.get(reverse("core:event-matches", args=[foreign.pk])).status_code, 404)
+
+    def test_vendor_discovery_shows_catalogue_without_intake_and_filters_help_type(self):
+        florist_user = User.objects.create_user(email="web-florist@example.com", role=User.Role.VENDOR)
+        florist = VendorProfile.objects.create(user=florist_user, business_name="Petal Web Studio", slug="petal-web-studio", primary_category=self.category, city="Ottawa", service_area="Ottawa", description="Flowers for gatherings", approval_status=VendorProfile.ApprovalStatus.APPROVED)
+        Listing.objects.create(profile=florist, listing_type=Listing.ListingType.SERVICE, title="Seasonal flowers", category=self.category, help_types=[EventRequest.HelpType.FLORIST], image="test.jpg", description="Flower service", pricing_type=Listing.PricingType.FIXED, price=Decimal("500"))
+
+        url = reverse("core:vendor-discovery")
+        unfiltered = self.client.get(url)
+        self.assertEqual({item["id"] for item in unfiltered.context["matches"]}, {self.profile.pk, florist.pk})
+        filtered = self.client.get(url, {"help_types": [EventRequest.HelpType.FLORIST]})
+        self.assertEqual([item["id"] for item in filtered.context["matches"]], [florist.pk])
+
+    def test_vendor_discovery_filter_toggle_count_and_values_are_preserved(self):
+        response = self.client.get(reverse("core:vendor-discovery"), {
+            "help_types": [EventRequest.HelpType.CATERER, EventRequest.HelpType.PRIVATE_CHEF],
+            "location": "Toronto",
+        })
+        self.assertEqual(response.context["active_filter_count"], 3)
+        self.assertEqual(response.context["filter_form"]["help_types"].value(), [EventRequest.HelpType.CATERER, EventRequest.HelpType.PRIVATE_CHEF])
+        self.assertEqual(response.context["filter_form"]["location"].value(), "Toronto")
+        self.assertContains(response, 'aria-expanded="false"')
+        self.assertContains(response, "Filters (3)")
+
+    def test_other_filter_requires_text_and_refines_results_without_a_global_category(self):
+        listing = self.profile.listings.first()
+        listing.title = "Custom centrepieces"
+        listing.save(update_fields=["title"])
+        url = reverse("core:vendor-discovery")
+
+        missing_text = self.client.get(url, {"help_types": [EventRequest.HelpType.OTHER]})
+        self.assertFalse(missing_text.context["filter_form"].is_valid())
+        self.assertContains(missing_text, "Tell us what you need when Other is selected.")
+
+        matching = self.client.get(url, {"help_types": [EventRequest.HelpType.OTHER], "other_help_text": "centrepieces"})
+        self.assertEqual([item["id"] for item in matching.context["matches"]], [self.profile.pk])
+        self.assertEqual(matching.context["filter_form"]["other_help_text"].value(), "centrepieces")
+
+        no_match = self.client.get(url, {"help_types": [EventRequest.HelpType.OTHER], "other_help_text": "balloon arch"})
+        self.assertEqual(no_match.context["matches"], [])
+        self.assertTrue(self.client.get(url, {"other_help_text": "stale query"}).context["filter_form"].is_valid())
+        self.assertEqual(self.client.get(url, {"other_help_text": "stale query"}).context["filter_form"].cleaned_data["other_help_text"], "")
+
+        event = EventRequest.objects.create(customer=self.customer, city="Toronto", help_types=[EventRequest.HelpType.CATERER], status=EventRequest.Status.READY)
+        event_result = self.client.get(reverse("core:event-matches", args=[event.pk]), {
+            "help_types": [EventRequest.HelpType.OTHER], "other_help_text": "centrepieces",
+        })
+        self.assertEqual([item["id"] for item in event_result.context["matches"]], [self.profile.pk])
+
+        event.help_types = [EventRequest.HelpType.OTHER]
+        event.other_help_text = "not in this catalogue"
+        event.save(update_fields=["help_types", "other_help_text"])
+        prefilled = self.client.get(reverse("core:event-matches", args=[event.pk]))
+        self.assertEqual(prefilled.context["active_filter_count"], 2)
+        self.assertEqual(prefilled.context["filter_form"]["other_help_text"].value(), "not in this catalogue")
+        self.assertEqual(prefilled.context["matches"], [])
+        self.assertContains(prefilled, 'aria-expanded="false"')
+        deselected = self.client.get(reverse("core:event-matches", args=[event.pk]), {"sort": "relevance", "filters_applied": "1"})
+        self.assertEqual([item["id"] for item in deselected.context["matches"]], [self.profile.pk])
+
+    def test_specific_service_options_include_provider_metadata_and_browse_all_control(self):
+        floral_service = VendorTag.objects.create(name="Floral centrepieces", kind=VendorTag.Kind.SERVICE)
+        self.profile.listings.first().service_tags.add(floral_service)
+        response = self.client.get(reverse("core:vendor-discovery"))
+        option = next(item for item in response.context["service_options"] if item["id"] == floral_service.pk)
+        self.assertTrue({"CAKE_DESSERTS", "CATERER", "CATERING", "PRIVATE_CHEF"}.issubset(option["help_types"]))
+        self.assertNotIn("RENTAL_ITEMS", option["help_types"])
+        self.assertNotIn("category", response.context["filter_form"].fields)
+        self.assertContains(response, "Browse all services")
+
+    def test_event_match_filter_selection_can_replace_prefilled_provider_type(self):
+        event = EventRequest.objects.create(
+            customer=self.customer, city="Toronto", help_types=[EventRequest.HelpType.CATERER],
+            status=EventRequest.Status.READY,
+        )
+        url = reverse("core:event-matches", args=[event.pk])
+        self.assertEqual([item["id"] for item in self.client.get(url).context["matches"]], [self.profile.pk])
+        cleared_provider_filter = self.client.get(url, {"sort": "relevance", "filters_applied": "1"})
+        self.assertEqual([item["id"] for item in cleared_provider_filter.context["matches"]], [self.profile.pk])
+        self.assertEqual(cleared_provider_filter.context["filter_form"]["help_types"].value(), [])
 
     def test_dashboard_lists_events_and_can_resume_mobile_draft(self):
         draft = EventRequest.objects.create(customer=self.customer, event_type=EventRequest.EventType.BIRTHDAY, status=EventRequest.Status.DRAFT, completed_step=2)

@@ -129,11 +129,21 @@ def budget_compatible(listing, event):
 def matching_vendors(event, filters, request):
     if filters["approval_status"] != VendorProfile.ApprovalStatus.APPROVED:
         return []
-    required = {category.pk for category in event.required_categories.all() if category.is_active}
-    help_types = set().union(*(HELP_LISTING_TYPES.get(help_type, set()) for help_type in event.help_types)) if event.help_types else set(Listing.ListingType.values)
+    required = {category.pk for category in event.required_categories.all() if category.is_active} if event else set()
+    event_help_types = [value for value in event.help_types if value != EventRequest.HelpType.OTHER] if event and "help_types" not in filters else []
+    selected_help_types = [value for value in filters.get("help_types", []) if value != EventRequest.HelpType.OTHER]
+    other_help_text = filters.get(
+        "other_help_text",
+        event.other_help_text if event and EventRequest.HelpType.OTHER in event.help_types and "help_types" not in filters else "",
+    )
+    help_types = set(Listing.ListingType.values)
+    if event_help_types:
+        help_types.intersection_update(set().union(*(HELP_LISTING_TYPES.get(help_type, set()) for help_type in event_help_types)))
+    if selected_help_types:
+        help_types.intersection_update(set().union(*(HELP_LISTING_TYPES.get(help_type, set()) for help_type in selected_help_types)))
     if filters.get("service"):
         help_types.intersection_update(HELP_LISTING_TYPES[filters["service"]])
-    active_listings = Listing.objects.filter(is_active=True).select_related("category")
+    active_listings = Listing.objects.filter(is_active=True).select_related("category").prefetch_related("service_tags")
     profiles = public_vendors().annotate(
         verified_rating=Avg("reviews__rating", filter=Q(reviews__is_verified=True)),
         review_count=Count("reviews", filter=Q(reviews__is_verified=True), distinct=True),
@@ -144,7 +154,7 @@ def matching_vendors(event, filters, request):
     )
     results = []
     for profile in profiles:
-        if not serves_location(profile, canonical_event_location(event.city)):
+        if event and event.city and not serves_location(profile, canonical_event_location(event.city)):
             continue
         if filters.get("location") and not serves_location(profile, filters["location"]):
             continue
@@ -161,8 +171,18 @@ def matching_vendors(event, filters, request):
             categories = {listing.category_id} if listing.category_id else profile_categories
             if required and not categories.intersection(required):
                 continue
-            if not provides_help(listing, event.help_types):
+            if not provides_help(listing, event_help_types):
                 continue
+            if not provides_help(listing, selected_help_types):
+                continue
+            if other_help_text:
+                searchable = " ".join((
+                    profile.business_name, profile.short_description, profile.description,
+                    listing.title, listing.description,
+                    " ".join(tag.name for tag in listing.service_tags.all()),
+                )).casefold()
+                if other_help_text.casefold() not in searchable:
+                    continue
             if filters.get("service") and not provides_help(listing, [filters["service"]]):
                 continue
             if listing.listing_type not in help_types:
@@ -171,7 +191,9 @@ def matching_vendors(event, filters, request):
                 continue
             if filters.get("listing_type") and filters["listing_type"] != listing.listing_type:
                 continue
-            if not budget_compatible(listing, event):
+            if filters.get("service_tag") and not any(tag.pk == filters["service_tag"].pk for tag in listing.service_tags.all()):
+                continue
+            if event and not budget_compatible(listing, event):
                 continue
             if any(key in filters for key in ("price_min", "price_max")):
                 if listing.price is None or listing.pricing_type == Listing.PricingType.CONTACT_FOR_QUOTE:
@@ -186,12 +208,12 @@ def matching_vendors(event, filters, request):
             continue
         reasons = [
             {"code": "CATEGORY_COVERAGE", "points": round(40 * len(coverage) / len(required)) if required else 0, "label": f"Covers {len(coverage)} of {len(required)} requested categories"},
-            {"code": "SERVICE_LOCATION", "points": 25, "label": "Lists your city in its service locations"},
-            {"code": "HELP_TYPE", "points": 15, "label": "Has an active listing for the help requested"},
+            {"code": "SERVICE_LOCATION", "points": 25 if (event and event.city) or filters.get("location") else 0, "label": "Serves your event location" if event and event.city else "Serves the selected location"},
+            {"code": "HELP_TYPE", "points": 15 if event_help_types or selected_help_types or filters.get("service") else 0, "label": "Has an active listing for the help requested"},
         ]
         priced = [listing.price for listing in eligible if listing.price is not None and listing.pricing_type in (Listing.PricingType.FIXED, Listing.PricingType.STARTING_FROM)]
         budget_points = 0
-        if priced and event.budget_max is not None:
+        if priced and event and event.budget_max is not None:
             budget_points = 20 if any(event.budget_min is None or price >= event.budget_min for price in priced) else 10
         reasons.append({"code": "INDICATIVE_BUDGET", "points": budget_points, "label": "Published price fits your indicative budget" if budget_points else "Total cost needs a quote or duration details"})
         image = request.build_absolute_uri(profile.profile_image.url) if profile.profile_image else None
@@ -206,7 +228,8 @@ def matching_vendors(event, filters, request):
             "created_at": profile.created_at.isoformat(),
             "listings": [{"id": listing.pk, "title": listing.title, "listing_type": listing.listing_type,
                           "category": listing.category_id, "pricing_type": listing.pricing_type,
-                          "price": str(listing.price) if listing.price is not None else None} for listing in eligible],
+                          "price": str(listing.price) if listing.price is not None else None,
+                          "service_tags": [{"id": tag.pk, "name": tag.name} for tag in listing.service_tags.all()]} for listing in eligible],
         })
     sort = filters["sort"]
     if sort == "price":

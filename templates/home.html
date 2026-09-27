@@ -6,7 +6,7 @@
         <h1>Plan your event in one place.</h1>
         <p class="hero-text">Find the people, pieces, and inspiration to make your next gathering feel like yours.</p>
         <div class="hero-actions">
-            <a class="button button-primary" href="{% url 'accounts:register' %}">Find Vendors</a>
+            <a class="button button-primary" href="{% if user.is_authenticated %}{% url 'core:vendor-discovery' %}{% else %}{% url 'accounts:register' %}{% endif %}">Find Vendors</a>
             <a class="button button-secondary" href="{% url 'accounts:vendor-register' %}">Become a Vendor</a>
         </div>
     </div>

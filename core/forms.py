@@ -222,19 +222,37 @@ class EventDiscoveryForm(forms.ModelForm):
 
 class MatchWebFilterForm(forms.Form):
     rating_min = forms.DecimalField(required=False, min_value=0, max_value=5, decimal_places=1, label="Minimum verified rating")
-    category = forms.ModelChoiceField(queryset=Category.objects.none(), required=False)
     location = forms.CharField(required=False, max_length=100)
-    service = forms.ChoiceField(choices=(("", "All services"),) + tuple(EventRequest.HelpType.choices), required=False)
+    service = forms.ChoiceField(choices=(("", "All services"),) + tuple(EventRequest.HelpType.choices), required=False, widget=forms.HiddenInput)
+    help_types = forms.MultipleChoiceField(choices=WEB_HELP_CHOICES, required=False, widget=forms.CheckboxSelectMultiple, label="What do you need help with?")
+    service_tag = forms.ModelChoiceField(queryset=VendorTag.objects.none(), required=False, label="Specific service")
+    other_help_text = forms.CharField(required=False, max_length=500, label="Tell us what you need", widget=forms.TextInput(attrs={"autocomplete": "off"}))
     price_min = forms.DecimalField(required=False, min_value=0)
     price_max = forms.DecimalField(required=False, min_value=0)
     sort = forms.ChoiceField(choices=(("relevance", "Relevance"), ("price", "Price"), ("newest", "Newest"), ("rating", "Verified rating")), required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["category"].queryset = Category.objects.filter(is_active=True)
+        submitted_help_types = self.data.getlist("help_types") if hasattr(self.data, "getlist") else self.data.get("help_types", [])
+        if isinstance(submitted_help_types, str):
+            submitted_help_types = [submitted_help_types]
+        selected_help_types = set(submitted_help_types) | set(self.initial.get("help_types", []))
+        legacy_choices = tuple(
+            choice for choice in EventRequest.HelpType.choices
+            if choice[0] in selected_help_types and choice[0] not in dict(WEB_HELP_CHOICES)
+        )
+        self.fields["help_types"].choices = WEB_HELP_CHOICES + legacy_choices
+        self.fields["service_tag"].queryset = VendorTag.objects.filter(is_active=True, kind=VendorTag.Kind.SERVICE)
 
     def clean(self):
         cleaned = super().clean()
+        if EventRequest.HelpType.OTHER in cleaned.get("help_types", []):
+            if not (cleaned.get("other_help_text") or "").strip():
+                self.add_error("other_help_text", "Tell us what you need when Other is selected.")
+            else:
+                cleaned["other_help_text"] = cleaned["other_help_text"].strip()
+        else:
+            cleaned["other_help_text"] = ""
         if cleaned.get("price_min") is not None and cleaned.get("price_max") is not None and cleaned["price_min"] > cleaned["price_max"]:
             self.add_error("price_max", "Maximum price must be at least the minimum price.")
         return cleaned

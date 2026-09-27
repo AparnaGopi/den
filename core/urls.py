@@ -12,6 +12,7 @@ urlpatterns = [
     path("dashboard/customer/", views.customer_dashboard, name="customer-dashboard"),
     path("dashboard/vendor/", views.vendor_dashboard, name="vendor-dashboard"),
     path("events/plan/", views.event_discovery, name="event-discovery"),
+    path("vendors/", views.vendor_discovery, name="vendor-discovery"),
     path("events/<int:event_id>/matches/", views.event_matches, name="event-matches"),
     path("events/<int:event_id>/vendors/<int:vendor_id>/save/", views.event_vendor_save, name="event-vendor-save"),
     path("vendors/<slug:slug>/", views.approved_vendor_profile, name="vendor-profile"),

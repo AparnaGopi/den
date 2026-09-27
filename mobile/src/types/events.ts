@@ -2,6 +2,7 @@ export type Category = {
   id: number; name: string; slug: string; service_group: string; service_group_label: string;
   relevant_help_types: HelpType[]; is_featured: boolean;
 };
+export type DiscoveryService = { id: number; name: string };
 export type EventType = 'WEDDING' | 'BIRTHDAY' | 'CORPORATE' | 'BABY_SHOWER' | 'ANNIVERSARY' | 'OTHER';
 export type HelpType = 'EVENT_PLANNER' | 'EVENT_COORDINATOR' | 'DECORATOR' | 'FLORIST' | 'BALLOON_ARTIST' | 'MAKEUP_ARTIST' | 'HAIRSTYLIST' | 'CATERER' | 'PRIVATE_CHEF' | 'PHOTOGRAPHER' | 'VIDEOGRAPHER' | 'ENTERTAINMENT' | 'KIDS_ENTERTAINMENT' | 'CAKE_DESSERTS' | 'VENUE' | 'RENTAL_ITEMS' | 'DELIVERY_PICKUP' | 'SETUP_TEARDOWN' | 'FULL_PLANNING' | 'OTHER' | 'PARTIAL_PLANNING' | 'VENDORS_ONLY' | 'RENTALS' | 'PRODUCTS' | 'PLANNER' | 'COMPLETE_SERVICE' | 'CATERING' | 'OTHER_SERVICES';
 export type VenueType = 'INDOOR' | 'OUTDOOR' | 'UNDECIDED';
@@ -52,7 +53,7 @@ export type VendorMatch = {
   review_count: number;
   starting_price: string | null;
   created_at: string;
-  listings: { id: number; title: string; listing_type: string; category: number | null; pricing_type: string; price: string | null }[];
+  listings: { id: number; title: string; listing_type: string; category: number | null; pricing_type: string; price: string | null; service_tags: DiscoveryService[] }[];
 };
 export type MatchPage = Page<VendorMatch> & {
   rating_available: boolean;

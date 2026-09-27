@@ -2,6 +2,7 @@ from django.urls import path
 from .views import (
     VendorOptionsView, VendorPortfolioView, EventReviewView, CategoryListView, EventArchiveView, EventCompleteView, EventDetailView,
     EventListCreateView, EventLocationListView, EventMatchesView, EventSavedVendorView, EventStepView, VendorBasicProfileView,
+    DiscoveryServiceTagListView, VendorDiscoveryView,
 )
 
 urlpatterns = [
@@ -12,6 +13,8 @@ urlpatterns = [
     path("vendor/profile/", VendorBasicProfileView.as_view(), name="vendor-basic-profile"),
     path("categories/", CategoryListView.as_view(), name="categories"),
     path("event-locations/", EventLocationListView.as_view(), name="event-locations"),
+    path("vendors/discovery/", VendorDiscoveryView.as_view(), name="vendor-discovery"),
+    path("discovery-services/", DiscoveryServiceTagListView.as_view(), name="discovery-services"),
     path("events/", EventListCreateView.as_view(), name="event-list"),
     path("events/<int:pk>/", EventDetailView.as_view(), name="event-detail"),
     path("events/<int:pk>/steps/<int:step>/", EventStepView.as_view(), name="event-step"),

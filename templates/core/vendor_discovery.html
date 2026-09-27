@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Find vendors | Den{% endblock %}
+{% block content %}
+<section class="matches-page content-width">
+  <p class="eyebrow">Approved vendors</p>
+  <h1>Find the right people for your gathering.</h1>
+  <p class="dashboard-intro">Browse active, approved vendors now, or use the guided questions to add event details and refine your results.</p>
+  <p><a class="button button-secondary" href="{% url 'core:event-discovery' %}">Help me refine</a></p>
+  {% url 'core:vendor-discovery' as clear_url %}
+  <details class="vendor-filter-disclosure" id="vendor-filter-disclosure">
+    <summary class="vendor-filter-toggle button button-secondary" id="vendor-filter-toggle" aria-expanded="false" aria-controls="vendor-filter-panel">Filters{% if active_filter_count %} ({{ active_filter_count }}){% endif %}</summary>
+    <form method="get" class="match-filters" id="vendor-filter-panel">{% include "core/_vendor_filters.html" %}</form>
+  </details>
+  <div class="match-summary"><strong>{{ matches|length }}</strong> approved active vendor{{ matches|length|pluralize }} found</div>
+  <div class="vendor-match-grid">
+    {% for vendor in matches %}<article class="vendor-match-card">
+      <div class="match-card-heading">{% if vendor.profile_image %}<img src="{{ vendor.profile_image }}" alt="{{ vendor.business_name }} profile">{% endif %}<div><span class="approval-badge">Approved</span><h2>{{ vendor.business_name }}</h2><p>{{ vendor.city }} · Serving {{ vendor.service_area }}</p></div></div>
+      <p>{% if vendor.rating != None %}{{ vendor.rating }} / 5 | {{ vendor.review_count }} verified Den review{{ vendor.review_count|pluralize }}{% else %}No verified reviews yet{% endif %}</p><p>{{ vendor.description }}</p>
+      <div class="match-listings">{% for listing in vendor.listings %}<p><strong>{{ listing.title }}</strong>{% for tag in listing.service_tags %} · {{ tag.name }}{% endfor %} · {% if listing.price %}${{ listing.price }}{% else %}Contact for a quote{% endif %}</p>{% endfor %}</div>
+      <div class="studio-actions"><a class="button button-secondary" href="{{ vendor.profile_url }}">View profile</a></div>
+    </article>{% empty %}<div class="empty-state"><h2>No vendors found</h2><p>{% if request.GET %}No active, approved vendors match these filters yet. Change or clear a filter to see more vendors.{% else %}There are no active, approved vendors to display yet. Please check back soon.{% endif %}</p><a class="button button-secondary" href="{% url 'core:vendor-discovery' %}">Clear filters</a></div>{% endfor %}
+  </div>
+</section>
+{% endblock %}

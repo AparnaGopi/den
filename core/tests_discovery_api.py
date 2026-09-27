@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
-from core.models import Category, EventRequest, Listing, VendorProfile
+from core.models import Category, EventRequest, Listing, Review, VendorProfile, VendorTag
 
 
 class EventDiscoveryAPITests(APITestCase):
@@ -118,6 +118,48 @@ class EventDiscoveryAPITests(APITestCase):
         inactive_profile.listings.update(is_active=False)
         response = self.client.get(self.matches_url())
         self.assertEqual([item["id"] for item in response.data["results"]], [self.profile.pk])
+
+    def test_vendor_discovery_browses_unfiltered_catalogue_and_applies_help_filters(self):
+        florist_category = self.other_category
+        florist_user = User.objects.create_user(email="florist@example.com", role=User.Role.VENDOR)
+        florist = self.make_vendor("Petal Studio", "petal-studio", florist_user, florist_category, city="Ottawa", service_area="Ottawa")
+        florist.listings.update(help_types=[EventRequest.HelpType.FLORIST], price=Decimal("500"))
+        service_tag = VendorTag.objects.create(name="Seasonal florals", kind=VendorTag.Kind.SERVICE)
+        florist.listings.first().service_tags.add(service_tag)
+        Review.objects.create(event=self.event, vendor=florist, rating=4, comment="Beautiful work", is_verified=True)
+        pending_user = User.objects.create_user(email="pending@example.com", role=User.Role.VENDOR)
+        hidden_profiles = [
+            self.make_vendor("Pending Studio", "pending-studio", pending_user, florist_category, approval_status=VendorProfile.ApprovalStatus.PENDING),
+        ]
+        rejected_user = User.objects.create_user(email="rejected@example.com", role=User.Role.VENDOR)
+        hidden_profiles.append(self.make_vendor("Rejected Studio", "rejected-studio", rejected_user, florist_category, approval_status=VendorProfile.ApprovalStatus.REJECTED))
+        inactive_user = User.objects.create_user(email="inactive@example.com", role=User.Role.VENDOR)
+        hidden_profiles.append(self.make_vendor("Inactive Studio", "inactive-studio", inactive_user, florist_category, is_active=False))
+        disabled_user = User.objects.create_user(email="disabled-vendor@example.com", role=User.Role.VENDOR, is_active=False)
+        hidden_profiles.append(self.make_vendor("Disabled Studio", "disabled-studio", disabled_user, florist_category))
+
+        url = reverse("api-v1:vendor-discovery")
+        unfiltered = self.client.get(url)
+        self.assertEqual({item["id"] for item in unfiltered.data["results"]}, {self.profile.pk, florist.pk})
+        self.assertFalse({profile.pk for profile in hidden_profiles}.intersection(item["id"] for item in unfiltered.data["results"]))
+
+        filtered = self.client.get(url, [("help_types", EventRequest.HelpType.FLORIST)])
+        self.assertEqual([item["id"] for item in filtered.data["results"]], [florist.pk])
+        detailed = self.client.get(url, {
+            "help_types": EventRequest.HelpType.FLORIST, "location": "Ottawa", "price_min": "400",
+            "price_max": "600", "rating_min": "4", "service_tag": service_tag.pk,
+        })
+        self.assertEqual([item["id"] for item in detailed.data["results"]], [florist.pk])
+
+    def test_mobile_event_matching_keeps_saved_other_text_refinement(self):
+        self.event.help_types = [EventRequest.HelpType.OTHER]
+        self.event.other_help_text = "needle-only"
+        self.event.save(update_fields=["help_types", "other_help_text"])
+        response = self.client.get(self.matches_url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["results"], [])
+        changed_provider = self.client.get(self.matches_url(), {"help_types": EventRequest.HelpType.PLANNER})
+        self.assertEqual([item["id"] for item in changed_provider.data["results"]], [self.profile.pk])
 
     def test_category_location_help_type_and_budget_are_eligibility_rules(self):
         florist_user = User.objects.create_user(email="florist@example.com", role=User.Role.VENDOR)

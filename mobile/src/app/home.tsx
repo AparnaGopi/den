@@ -54,7 +54,8 @@ export default function HomeScreen() {
   }
   return <DiscoveryScreen title={`Hello, ${user?.first_name || 'there'}.`}>
     <Text style={styles.body}>Your next good gathering starts here.</Text>
-    <Button label="Plan an event" loading={creating} onPress={() => void startEvent()} />
+    <Button label="Find vendors" onPress={() => router.push('/event-matches')} />
+    <Button label="Help me refine" variant="secondary" loading={creating} onPress={() => void startEvent()} />
     {error && <ErrorNotice message={error} retry={() => void load()} />}
     {loading && <Loading />}
     {!loading && !error && events.length === 0 && <View style={styles.card}><Text style={styles.heading}>A little room to begin</Text><Text style={styles.body}>Tell us what you have in mind. We will save your answers as you go.</Text></View>}

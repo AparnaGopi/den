@@ -4,12 +4,11 @@
 <section class="matches-page content-width">
   <p class="eyebrow">Approved vendors</p><h1>Matches for {{ event.get_event_type_display }}</h1>
   <p class="dashboard-intro">{{ event.event_date }} · {{ event.city }} · {{ event.guest_count }} guests. Published prices are indicative and are not booking quotes.</p>
-  <form method="get" class="match-filters">
-    {{ filter_form.category.as_field_group }}{{ filter_form.location.as_field_group }}{{ filter_form.service.as_field_group }}
-    {{ filter_form.price_min.as_field_group }}{{ filter_form.price_max.as_field_group }}{{ filter_form.sort.as_field_group }}
-    {{ filter_form.rating_min.as_field_group }}
-    <div class="match-filter-actions"><button class="button button-primary" type="submit">Apply filters</button><a class="button button-secondary" href="{% url 'core:event-matches' event.pk %}">Clear</a></div>
-  </form>
+  {% url 'core:event-matches' event.pk as clear_url %}
+  <details class="vendor-filter-disclosure" id="vendor-filter-disclosure">
+    <summary class="vendor-filter-toggle button button-secondary" id="vendor-filter-toggle" aria-expanded="false" aria-controls="vendor-filter-panel">Filters{% if active_filter_count %} ({{ active_filter_count }}){% endif %}</summary>
+    <form method="get" class="match-filters" id="vendor-filter-panel">{% include "core/_vendor_filters.html" %}</form>
+  </details>
   <div class="match-summary"><strong>{{ matches|length }}</strong> approved active vendor{{ matches|length|pluralize }} found</div>
   <div class="vendor-match-grid">
     {% for vendor in matches %}<article class="vendor-match-card">
