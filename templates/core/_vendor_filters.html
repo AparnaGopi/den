@@ -26,6 +26,7 @@
   <label class="browse-all-services"><input type="checkbox" id="browse-all-services" name="browse_all_services" value="on"{% if request.GET.browse_all_services %} checked{% endif %}> Browse all services</label>
 </div>
 {{ filter_form.service }}<input type="hidden" name="filters_applied" value="1">
+<div class="filter-field">{{ filter_form.category.as_field_group }}</div>
 <div class="filter-field">{{ filter_form.location.as_field_group }}</div>
 <div class="filter-field">{{ filter_form.price_min.as_field_group }}</div>
 <div class="filter-field">{{ filter_form.price_max.as_field_group }}</div>

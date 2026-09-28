@@ -222,6 +222,7 @@ class EventDiscoveryForm(forms.ModelForm):
 
 class MatchWebFilterForm(forms.Form):
     rating_min = forms.DecimalField(required=False, min_value=0, max_value=5, decimal_places=1, label="Minimum verified rating")
+    category = forms.ModelChoiceField(queryset=Category.objects.none(), required=False, label="Category")
     location = forms.CharField(required=False, max_length=100)
     service = forms.ChoiceField(choices=(("", "All services"),) + tuple(EventRequest.HelpType.choices), required=False, widget=forms.HiddenInput)
     help_types = forms.MultipleChoiceField(choices=WEB_HELP_CHOICES, required=False, widget=forms.CheckboxSelectMultiple, label="What do you need help with?")
@@ -242,6 +243,7 @@ class MatchWebFilterForm(forms.Form):
             if choice[0] in selected_help_types and choice[0] not in dict(WEB_HELP_CHOICES)
         )
         self.fields["help_types"].choices = WEB_HELP_CHOICES + legacy_choices
+        self.fields["category"].queryset = Category.objects.filter(is_active=True)
         self.fields["service_tag"].queryset = VendorTag.objects.filter(is_active=True, kind=VendorTag.Kind.SERVICE)
 
     def clean(self):

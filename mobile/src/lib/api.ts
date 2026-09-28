@@ -18,11 +18,13 @@ export type TokenResponse = {
 
 export class ApiError extends Error {
   status: number;
+  data: unknown;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, data?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -56,7 +58,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}, acc
   const data = text ? JSON.parse(text) : null;
 
   if (!response.ok) {
-    throw new ApiError(errorMessage(data), response.status);
+    throw new ApiError(errorMessage(data && typeof data === 'object' && 'errors' in data ? data.errors : data), response.status, data);
   }
 
   return data as T;

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ step_title }} · Vendor setup | Den{% endblock %}
+{% block content %}
+<section class="management-page vendor-wizard">
+  <p class="eyebrow">Vendor studio</p><h1>Your business, one step at a time.</h1>
+  <p>Status: {{ profile.get_approval_status_display }}. Submissions are reviewed by an admin before appearing in discovery.</p>
+  {% if profile.review_feedback %}<p role="status">Admin feedback: {{ profile.review_feedback }}</p>{% endif %}
+  {% if wizard.submitted %}<p class="message success" role="status">Your answers have been submitted for admin approval. You can edit and submit again below.</p>{% endif %}
+  <p id="save-status" role="status" aria-live="polite">Progress is saved as you type and when you use Back, Continue, or Save progress.</p>
+  <form id="vendor-wizard" method="post" enctype="multipart/form-data" novalidate class="management-form">
+    {% csrf_token %}<input type="hidden" name="wizard" value="1"><input type="hidden" name="step" value="{{ step }}"><input type="hidden" name="revision" value="{{ wizard.revision }}"><input type="hidden" name="target" value=""><input type="hidden" name="photo_id" value="">
+    <nav aria-label="Setup steps"><ol class="wizard-steps">
+    {% for number, title in steps %}<li><button type="submit" name="action" value="goto" data-target="{{ number }}" {% if number == step %}aria-current="step"{% endif %}>{{ number }}. {{ title }}</button></li>{% endfor %}
+    </ol></nav>
+    <label for="wizard-progress">Step {{ step }} of 6: {{ step_title }}</label><progress id="wizard-progress" max="6" value="{{ step }}">{{ step }} / 6</progress>
+    <h2>{{ step_title }}</h2>
+    <div id="wizard-errors" role="alert">{{ form.non_field_errors }}</div>
+    {% if step == 1 %}<div class="vendor-field"><label for="id_logo">Company logo (optional)</label><input id="id_logo" type="file" name="logo" accept="image/jpeg,image/png,image/webp"><div id="logo-preview">{% if wizard.logo_url %}<img class="wizard-image" src="{{ wizard.logo_url }}" alt="Saved company logo">{% endif %}</div></div>{% endif %}
+    {% if step == 4 and wizard.pricing_listing_title %}<p>Pricing for <strong>{{ wizard.pricing_listing_title }}</strong>. Manage additional listings in <a href="{% url 'core:vendor-listings-manage' %}">Services & products</a>.</p>{% endif %}
+    {% for field in form %}<div class="vendor-field" data-field="{{ field.name }}">{{ field.label_tag }}{{ field }}{% if field.help_text %}<p class="muted">{{ field.help_text }}</p>{% endif %}{{ field.errors }}</div>{% endfor %}
+    {% if step == 2 %}<p>Previously saved services remain available so you can keep or remove them explicitly.</p>{% endif %}
+    {% if step == 5 %}
+      <p>Photos are optional. Upload JPEG, PNG or WebP images, up to 5 MB each.</p>
+      <div class="vendor-field"><label for="id_cover">Cover photo</label><input id="id_cover" type="file" name="cover" accept="image/jpeg,image/png,image/webp"><div id="cover-preview">{% if wizard.cover_url %}<img class="wizard-image" src="{{ wizard.cover_url }}" alt="Saved cover photo">{% endif %}</div></div>
+      <div class="vendor-field"><label for="id_photos">Portfolio photos (up to 20 per upload)</label><input id="id_photos" type="file" name="photos" multiple accept="image/jpeg,image/png,image/webp"></div>
+      <div id="portfolio-preview" class="wizard-gallery">{% for photo in wizard.photos %}<figure><img class="wizard-image" src="{{ photo.url }}" alt="{{ photo.caption|default:'Portfolio photo' }}"><figcaption>{{ photo.caption }}</figcaption><button class="button button-secondary" type="submit" name="action" value="remove_photo" data-photo-id="{{ photo.id }}">Remove photo</button></figure>{% endfor %}</div>
+    {% endif %}
+    {% if step == 6 %}
+      <p>Check your answers. Use Edit to change a section before submitting.</p>
+      {% for section in wizard.review %}<section class="wizard-review"><div class="wizard-actions"><h3>{{ section.title }}</h3><button class="button button-secondary" type="submit" name="action" value="goto" data-target="{{ section.step }}">Edit {{ section.title }}</button></div><dl>{% for row in section.rows %}<dt>{{ row.label }}</dt><dd>{{ row.value|linebreaksbr }}</dd>{% endfor %}</dl>
+      {% if section.step == 1 %}{% if wizard.logo_url %}<img class="wizard-image" src="{{ wizard.logo_url }}" alt="Company logo">{% else %}<p>No logo added.</p>{% endif %}{% endif %}
+      {% if section.step == 5 %}{% if wizard.cover_url %}<img class="wizard-image" src="{{ wizard.cover_url }}" alt="Cover photo">{% endif %}<div class="wizard-gallery">{% for photo in wizard.photos %}<figure><img class="wizard-image" src="{{ photo.url }}" alt="{{ photo.caption|default:'Portfolio photo' }}"><figcaption>{{ photo.caption }}</figcaption></figure>{% empty %}<p>No portfolio photos added.</p>{% endfor %}</div>{% endif %}
+      </section>{% endfor %}
+    {% endif %}
+    <div class="wizard-actions">
+      {% if step > 1 %}<button type="submit" class="button button-secondary" name="action" value="back">Back</button>{% endif %}
+      <button type="submit" class="button button-secondary" name="action" value="save">Save progress</button>
+      {% if step < 6 %}<button type="submit" class="button button-primary" name="action" value="next">Continue</button>{% else %}<button type="submit" class="button button-primary" name="action" value="submit">Submit for admin approval</button>{% endif %}
+    </div>
+  </form>
+  <p><a href="{% url 'core:vendor-profile-manage' %}?advanced=1">Advanced profile details</a> · <a href="{% url 'core:vendor-listings-manage' %}">Services & products</a> · <a href="{% url 'core:vendor-portfolio-manage' %}">Manage saved portfolio</a></p>
+</section>
+{{ wizard|json_script:"vendor-wizard-data" }}
+<link rel="stylesheet" href="{% static 'css/vendor-wizard.css' %}">
+<script src="{% static 'js/vendor-wizard.js' %}" defer></script>
+{% endblock %}
+

@@ -163,6 +163,7 @@ MAILERS = {
 # Backend-specific credentials/options belong in deployment environment settings.
 import os
 import json
+DEN_ALLOW_LOCAL_DEMO_VENDOR_SEED = os.environ.get("DEN_ALLOW_LOCAL_DEMO_VENDOR_SEED") == "1"
 STORAGES = {
     "default": {
         "BACKEND": os.environ.get("DEN_STORAGE_BACKEND", "django.core.files.storage.FileSystemStorage"),

@@ -40,7 +40,7 @@ def discovery_filter_count(form):
     count = len(form.cleaned_data["help_types"])
     count += sum(
         form.cleaned_data.get(field) not in (None, "")
-        for field in ("service_tag", "other_help_text", "location", "price_min", "price_max", "rating_min")
+        for field in ("category", "service_tag", "other_help_text", "location", "price_min", "price_max", "rating_min")
     )
     return count
 
@@ -102,6 +102,9 @@ def get_vendor_profile(user):
 @require_http_methods(["GET", "POST"])
 @transaction.atomic
 def vendor_profile_manage(request):
+    if (request.method == "GET" and request.GET.get("advanced") != "1") or "wizard" in request.POST:
+        from .wizard_views import vendor_wizard
+        return vendor_wizard(request)
     vendor_only(request)
     profile = get_vendor_profile(request.user)
     if request.method == "POST":

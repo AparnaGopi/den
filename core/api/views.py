@@ -284,3 +284,36 @@ class VendorPortfolioView(VendorBasicProfileView):
         entry = get_object_or_404(self.profile(request).portfolio_entries, pk=pk)
         entry.delete()
         return Response(status=204)
+
+class VendorWizardView(VendorBasicProfileView):
+    """The same saved draft and validation used by the Django wizard."""
+    http_method_names = ('get', 'post', 'head', 'options')
+
+    @transaction.atomic
+    def get(self, request):
+        from core.vendor_wizard import get_draft, payload
+        profile = self.profile(request)
+        profile = VendorProfile.objects.select_for_update().get(pk=profile.pk)
+        return Response(payload(get_draft(profile), request))
+
+    @transaction.atomic
+    def post(self, request):
+        import json
+        from core.models import VendorOnboardingDraft
+        from core.vendor_wizard import get_draft, payload, update_draft
+        from core.wizard_views import integer
+        profile = self.profile(request)
+        profile = VendorProfile.objects.select_for_update().get(pk=profile.pk)
+        draft = get_draft(profile)
+        draft = VendorOnboardingDraft.objects.select_for_update().select_related('profile', 'pricing_listing').get(pk=draft.pk)
+        answers = request.data.get('answers', {})
+        if isinstance(answers, str):
+            try:
+                answers = json.loads(answers)
+            except (ValueError, TypeError):
+                return Response({'errors': {'answers': ['Send valid JSON.']}}, status=400)
+        errors, status = update_draft(draft,
+            step=integer(request.data.get('step')), action=request.data.get('action', 'save'),
+            answers=answers, files=request.FILES, target=integer(request.data.get('target')),
+            revision=integer(request.data.get('revision')), photo_id=request.data.get('photo_id'))
+        return Response({**payload(draft, request), 'errors': errors}, status=status)

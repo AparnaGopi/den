@@ -1,11 +1,12 @@
 from django.urls import path
 from .views import (
-    VendorOptionsView, VendorPortfolioView, EventReviewView, CategoryListView, EventArchiveView, EventCompleteView, EventDetailView,
+    VendorWizardView, VendorOptionsView, VendorPortfolioView, EventReviewView, CategoryListView, EventArchiveView, EventCompleteView, EventDetailView,
     EventListCreateView, EventLocationListView, EventMatchesView, EventSavedVendorView, EventStepView, VendorBasicProfileView,
     DiscoveryServiceTagListView, VendorDiscoveryView,
 )
 
 urlpatterns = [
+    path("vendor/onboarding/", VendorWizardView.as_view(), name="vendor-onboarding"),
     path("vendor/options/", VendorOptionsView.as_view(), name="vendor-options"),
     path("vendor/portfolio/", VendorPortfolioView.as_view(), name="vendor-portfolio"),
     path("vendor/portfolio/<int:pk>/", VendorPortfolioView.as_view(), name="vendor-portfolio-detail"),

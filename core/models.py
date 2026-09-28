@@ -103,6 +103,8 @@ class VendorProfile(models.Model):
 	TRAVEL_CHOICES = [("", "Select travel distance"), ("LOCAL", "Local only"), ("25", "25 km"), ("50", "50 km"), ("100", "100 km"), ("250", "250 km"), ("ANY", "Open to travel")]
 	EXPERIENCE_CHOICES = [(0, "Less than a year")] + [(n, f"{n} years") for n in range(1, 51)]
 	contact_first_name = models.CharField(max_length=150, blank=True)
+	vendor_type = models.CharField(max_length=30, blank=True)
+	other_services = models.TextField(blank=True, max_length=2000)
 	contact_last_name = models.CharField(max_length=150, blank=True)
 	business_email = models.EmailField(blank=True)
 	service_tags = models.ManyToManyField(VendorTag, blank=True, related_name="service_profiles", limit_choices_to={"kind": "SERVICE"})
@@ -175,6 +177,28 @@ class VendorProfile(models.Model):
 
 	def __str__(self):
 		return self.business_name
+
+
+class VendorOnboardingDraft(models.Model):
+    profile = models.OneToOneField(VendorProfile, on_delete=models.CASCADE, related_name="onboarding_draft")
+    answers = models.JSONField(default=dict)
+    current_step = models.PositiveSmallIntegerField(default=1)
+    revision = models.PositiveIntegerField(default=0)
+    pricing_listing = models.ForeignKey("Listing", null=True, blank=True, on_delete=models.SET_NULL)
+    logo = models.ImageField(upload_to=vendor_upload_path, validators=[validate_vendor_image], blank=True)
+    cover = models.ImageField(upload_to=vendor_upload_path, validators=[validate_vendor_image], blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class VendorDraftPhoto(models.Model):
+    draft = models.ForeignKey(VendorOnboardingDraft, on_delete=models.CASCADE, related_name="photos")
+    image = models.ImageField(upload_to=vendor_upload_path, validators=[validate_vendor_image])
+    caption = models.CharField(max_length=240, blank=True)
+
+    @property
+    def profile_id(self):
+        return self.draft.profile_id
 
 
 class PortfolioEntry(models.Model):

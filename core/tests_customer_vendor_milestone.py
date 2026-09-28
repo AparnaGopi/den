@@ -115,7 +115,8 @@ class CustomerWebDiscoveryTests(TestCase):
         option = next(item for item in response.context["service_options"] if item["id"] == floral_service.pk)
         self.assertTrue({"CAKE_DESSERTS", "CATERER", "CATERING", "PRIVATE_CHEF"}.issubset(option["help_types"]))
         self.assertNotIn("RENTAL_ITEMS", option["help_types"])
-        self.assertNotIn("category", response.context["filter_form"].fields)
+        self.assertIn("category", response.context["filter_form"].fields)
+        self.assertContains(response, "Category")
         self.assertContains(response, "Browse all services")
 
     def test_event_match_filter_selection_can_replace_prefilled_provider_type(self):
@@ -191,7 +192,7 @@ class VendorBasicProfileAPITests(APITestCase):
 
     def test_vendor_web_form_keeps_full_profile_fields(self):
         self.client.force_authenticate(None); self.client.force_login(self.vendor)
-        response = self.client.get(reverse("core:vendor-profile-manage"))
+        response = self.client.get(reverse("core:vendor-profile-manage"), {"advanced": "1"})
         for field in ("tags", "availability", "google_business_url", "description", "cover_image"):
             self.assertIn(field, response.context["form"].fields)
         self.assertNotIn("approval_status", response.context["form"].fields)
