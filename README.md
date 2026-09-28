@@ -44,6 +44,47 @@ Run the complete test suite with:
 python manage.py test
 ```
 
+## Local demo vendors
+
+The approved fixture in `core/den_approved_demo_vendors.csv` contains 18 fictional vendors for testing discovery filters. To import it into the project-local `db.sqlite3` with `DEBUG=True`:
+
+```powershell
+$env:DEN_ALLOW_LOCAL_DEMO_VENDOR_SEED = "1"
+python manage.py seed_demo_vendors --confirm-local
+Remove-Item Env:DEN_ALLOW_LOCAL_DEMO_VENDOR_SEED
+```
+
+The command creates approved vendor profiles and listings with unusable account passwords. Repeating the import skips existing demo records; identity collisions stop the import without modifying existing vendors. All import writes run in one transaction.
+
+Use the customer vendor discovery page to try category, service, location, and price filters. The Toronto candidate CSV is a separate research file and is not imported by this command.
+
+## Guided vendor setup
+
+Django's `/vendor/profile/` page and the mobile vendor studio share a six-step form: Business, Services, Location, Pricing, Media, and Review. Answers autosave to an account-owned server draft, and **Save progress** works for incomplete answers. Continue validates the current and preceding steps; Back preserves answers. Review links let vendors edit each section before submitting.
+
+- Specific service tags follow the vendor type. Choose up to four catalogue services (one primary and three additional), with Other for custom services.
+- Pricing reuses the oldest existing listing, identified on the Pricing step. A new vendor gets one service listing on submission. Other listings retain their data.
+- Logo, cover, and portfolio uploads stay in the draft until submission. Removing a saved portfolio photo takes effect when the draft is submitted.
+- Submission validates all steps and sets approval to `PENDING`. Draft edits do not change the existing profile. Fields outside the guided form remain available in Advanced profile details.
+- Mobile uses `/api/v1/vendor/onboarding/`, backed by the same draft and validation as the Django form. A revision check prevents an old window from overwriting newer answers. Saving requires a connection; check the saved confirmation before leaving.
+
+Apply the additive migration with `python manage.py migrate`. It adds draft storage and optional vendor type / Other fields without rewriting existing profile data.
+
+### Verification
+
+```powershell
+python manage.py test
+npm run typecheck --prefix mobile
+```
+
+Browser smoke tests cover both the Django form and the Expo app at a mobile viewport. They use a temporary database, separate from local vendor data:
+
+1. Run `python scripts/vendor_wizard_smoke_server.py` (port 8765).
+2. In `mobile`, set `$env:EXPO_PUBLIC_API_URL='http://127.0.0.1:8765/api/v1'` and run `npx expo start --web --port 8083`.
+3. With Playwright available, run `node scripts/vendor-wizard-smoke.cjs`. Set `PLAYWRIGHT_MODULE` to its package path if it is installed outside the project. The script uses headless Microsoft Edge and writes screenshots under `build/wizard-smoke/`.
+
+Check Android bundling from `mobile` with `npx expo export --platform android --output-dir ../build/vendor-native`. The browser flow and bundle check do not replace testing on a physical device or emulator.
+
 ## API v1
 
 The API is available under `/api/v1/`. Registration returns the created user and JWT access and refresh tokens. The public registration endpoints accept only the role assigned to that endpoint; administrator accounts can only be created through Django Admin.

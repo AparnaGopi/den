@@ -1,152 +1,225 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { Image, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Image, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChoiceChip, ErrorNotice, Loading, discoveryStyles } from '@/components/discovery-ui';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
-import { requestError, type Category } from '@/types/events';
+import { ApiError } from '@/lib/api';
+import { fieldChoices, stepAnswers, visibleField, type VendorWizard, type WizardAnswer, type WizardField } from '@/lib/vendor-wizard';
+import { requestError } from '@/types/events';
 
-type VendorProfile = {
-  id: number; business_name: string; category: number | null; additional_categories: number[]; phone: string; city: string; service_area: string;
-  short_description: string; profile_image_url: string | null; approval_status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
-  approval_label: string; full_profile_url: string; review_feedback: string;
-  contact_first_name: string; contact_last_name: string; business_email: string; website_url: string; instagram_url: string; google_business_url: string; service_tags: number[]; service_locations: number[];
-};
-type Form = Pick<VendorProfile, 'business_name' | 'category' | 'additional_categories' | 'phone' | 'city' | 'service_area' | 'short_description' | 'contact_first_name' | 'contact_last_name' | 'business_email' | 'website_url' | 'instagram_url' | 'google_business_url' | 'service_tags' | 'service_locations'>;
-type Option = { id: number; name: string };
-type Portfolio = { id: number; image: string; caption: string };
-const contactFields = ['contact_first_name', 'contact_last_name', 'business_email', 'website_url', 'instagram_url', 'google_business_url'] as const;
-const contactLabels = ['Contact first name', 'Contact last name', 'Business email', 'Website URL', 'Instagram URL', 'Google Business URL'];
+type Upload = { field: 'logo' | 'cover' | 'photos'; assets: ImagePicker.ImagePickerAsset[] };
+const endpoint = '/vendor/onboarding/';
 
 export default function VendorHomeScreen() {
   const router = useRouter();
   const { user, status, authenticatedRequest, logout } = useAuth();
-  const [profile, setProfile] = useState<VendorProfile | null>(null);
-  const [form, setForm] = useState<Form | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [showAllVendorCategories, setShowAllVendorCategories] = useState(false);
-  const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
-  const [options, setOptions] = useState<{ service_tags: Option[]; locations: Option[] }>({ service_tags: [], locations: [] });
-  const [portfolio, setPortfolio] = useState<Portfolio[]>([]);
-  const [portfolioImage, setPortfolioImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
-  const [caption, setCaption] = useState('');
-  const [removeLogo, setRemoveLogo] = useState(false);
-  const [notice, setNotice] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [wizard, setWizard] = useState<VendorWizard | null>(null);
+  const [answers, setAnswers] = useState<VendorWizard['answers']>({});
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const current = useRef<VendorWizard | null>(null);
+  const values = useRef<VendorWizard['answers']>({});
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scroll = useRef<ScrollView>(null);
+  const mounted = useRef(true);
+  const conflict = useRef(false);
+  const saveOnLeave = useRef<() => void>(() => {});
+
   const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    try {
-      const [saved, choices, choicesExtra, photos] = await Promise.all([authenticatedRequest<VendorProfile>('/vendor/profile/'), authenticatedRequest<Category[]>('/categories/'), authenticatedRequest<{ service_tags: Option[]; locations: Option[] }>('/vendor/options/'), authenticatedRequest<Portfolio[]>('/vendor/portfolio/')]);
-      setOptions(choicesExtra); setPortfolio(photos);
-      setProfile(saved); setForm(saved); setCategories(choices);
-    } catch (cause) { setError(requestError(cause)); } finally { setLoading(false); }
-  }, [authenticatedRequest]);
-  useFocusEffect(useCallback(() => {
-    if (status === 'authenticated' && user?.role === 'customer') router.replace('/home');
-    if (status === 'authenticated' && user?.role === 'vendor') void load();
-    if (status === 'unauthenticated') router.replace('/');
-  }, [load, router, status, user?.role]));
-  function update<K extends keyof Form>(key: K, value: Form[K]) { setForm((old) => old ? { ...old, [key]: value } : old); }
-  const vendorFeaturedCategories = categories.filter((category) => category.is_featured || form?.additional_categories.includes(category.id));
-  const vendorExtraCategories = categories.filter((category) => !vendorFeaturedCategories.includes(category));
-  const visibleVendorCategories = showAllVendorCategories ? categories : vendorFeaturedCategories;
-  async function chooseImage(forPortfolio = false) {
     setError(null);
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.85 });
-      if (!result.canceled) {
-        const selected = result.assets[0];
-        if (selected.fileSize && selected.fileSize > 5 * 1024 * 1024) throw new Error('Choose an image smaller than 5 MB.');
-        if (selected.mimeType && !['image/jpeg', 'image/png', 'image/webp'].includes(selected.mimeType)) throw new Error('Choose a JPEG, PNG or WebP image.');
-        if (forPortfolio) setPortfolioImage(selected); else { setImage(selected); setRemoveLogo(false); }
-      }
+      const saved = await authenticatedRequest<VendorWizard>(endpoint);
+      current.current = saved; values.current = saved.answers; conflict.current = false;
+      setWizard(saved); setAnswers(saved.answers); setErrors({});
+      setNotice('Saved progress restored.');
     } catch (cause) { setError(requestError(cause)); }
-  }
-  async function save() {
-    if (!form) return;
-    setSaving(true); setError(null);
-    try {
+  }, [authenticatedRequest]);
+
+  const latestLoad = useRef(load);
+  latestLoad.current = load;
+  useEffect(() => {
+    if (status === 'authenticated' && user?.role === 'customer') router.replace('/home');
+    if (status === 'unauthenticated') router.replace('/');
+    if (status === 'authenticated' && user?.role === 'vendor') void latestLoad.current();
+  }, [router, status, user?.id, user?.role]);
+  useEffect(() => {
+    mounted.current = true;
+    const listener = AppState.addEventListener('change', (state) => { if (state !== 'active') saveOnLeave.current(); });
+    return () => { mounted.current = false; listener.remove(); saveOnLeave.current(); };
+  }, []);
+
+  function enqueue(action: string, target?: number, upload?: Upload, photoId?: string) {
+    const pending = queue.current.catch(() => {}).then(async () => {
+      const saved = current.current;
+      if (!saved || conflict.current) return false;
+      const sentAnswers = stepAnswers(saved, values.current);
       const body = new FormData();
-      Object.entries(form).forEach(([key, value]) => {
-        if (['id', 'approval_status', 'approval_label', 'full_profile_url', 'profile_image_url', 'review_feedback'].includes(key)) return;
-        if (Array.isArray(value)) { value.forEach((id) => body.append(key, String(id))); }
-        else if (value !== null) body.append(key, String(value));
-      });
-      // Explicit flags distinguish an empty multi-select from an omitted PATCH field.
-      if (!form.service_tags.length) body.append('clear_service_tags', 'true');
-      if (!form.service_locations.length) body.append('clear_service_locations', 'true');
-      if (!form.additional_categories.length) body.append('clear_additional_categories', 'true');
-      body.append('remove_logo', String(removeLogo));
-      if (image) await appendImage(body, 'profile_image', image);
-      const saved = await authenticatedRequest<VendorProfile>('/vendor/profile/', { method: 'PATCH', body });
-      setNotice('Profile saved. Use the full web editor to preview and submit for approval.'); setRemoveLogo(false);
-      setProfile(saved); setForm(saved); setImage(null);
-    } catch (cause) { setError(requestError(cause)); } finally { setSaving(false); }
+      body.append('step', String(saved.step)); body.append('revision', String(saved.revision));
+      body.append('action', action); body.append('answers', JSON.stringify(sentAnswers));
+      if (target) body.append('target', String(target));
+      if (photoId) body.append('photo_id', photoId);
+      if (mounted.current) setNotice('Saving progress…');
+      try {
+        if (upload) for (const asset of upload.assets) {
+          if (Platform.OS === 'web') body.append(upload.field, asset.file ?? await (await fetch(asset.uri)).blob(), asset.fileName || 'image.jpg');
+          else body.append(upload.field, { uri: asset.uri, name: asset.fileName || 'image.jpg', type: asset.mimeType || 'image/jpeg' } as unknown as Blob);
+        }
+        const result = await authenticatedRequest<VendorWizard>(endpoint, { method: 'POST', body });
+        current.current = result;
+        if (mounted.current) {
+          setWizard(result); setError(null); setErrors({});
+          setNotice(action === 'submit' ? 'Submitted for admin approval.' : 'Progress saved. You can leave and return.');
+        }
+        if (action !== 'save') {
+          values.current = result.answers;
+          if (mounted.current) { setAnswers(result.answers); scroll.current?.scrollTo({ y: 0, animated: true }); }
+        }
+        return true;
+      } catch (cause) {
+        if (cause instanceof ApiError && cause.status === 409) conflict.current = true;
+        if (cause instanceof ApiError && cause.status === 400 && cause.data && typeof cause.data === 'object' && 'revision' in cause.data) {
+          const result = cause.data as VendorWizard;
+          current.current = result;
+          if (action !== 'save') { values.current = result.answers; if (mounted.current) setAnswers(result.answers); }
+          if (mounted.current) { setWizard(result); setErrors(result.errors || {}); scroll.current?.scrollTo({ y: 0, animated: true }); }
+        }
+        if (mounted.current) { setError(requestError(cause)); setNotice('Check the highlighted answers or retry saving.'); }
+        return false;
+      }
+    });
+    queue.current = pending;
+    return pending;
   }
-  async function appendImage(body: FormData, field: string, asset: ImagePicker.ImagePickerAsset) {
-    if (Platform.OS === 'web') body.append(field, asset.file ?? await (await fetch(asset.uri)).blob(), asset.fileName || 'image.jpg');
-    else body.append(field, { uri: asset.uri, name: asset.fileName || 'image.jpg', type: asset.mimeType || 'image/jpeg' } as unknown as Blob);
+
+  saveOnLeave.current = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; void enqueue('save'); }
+  };
+
+  function update(name: string, value: WizardAnswer) {
+    const next = { ...values.current, [name]: value };
+    if (name === 'vendor_type' && current.current) {
+      const allowed = new Set(current.current.service_catalogue.filter((item) => item.saved || item.types.includes(String(value))).map((item) => item.value));
+      next.specific_services = (next.specific_services as string[]).filter((id) => allowed.has(id));
+      if (value === 'OTHER') next.other_enabled = true;
+    }
+    values.current = next; setAnswers(next); setNotice('Unsaved changes…');
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { timer.current = null; void enqueue('save'); }, 800);
   }
-  async function uploadPortfolio() {
-    if (!portfolioImage) return;
-    setSaving(true); setError(null);
+
+  async function navigate(action: string, target?: number) {
+    if (busy) return;
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    setBusy(true);
+    try { await enqueue(action, target); } finally { if (mounted.current) setBusy(false); }
+  }
+
+  async function chooseImages(field: Upload['field']) {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    setBusy(true); setError(null);
     try {
-      const body = new FormData(); await appendImage(body, 'image', portfolioImage); body.append('caption', caption);
-      const saved = await authenticatedRequest<Portfolio>('/vendor/portfolio/', { method: 'POST', body });
-      setPortfolio((old) => [saved, ...old]); setPortfolioImage(null); setCaption(''); setNotice('Portfolio image uploaded.');
-    } catch (cause) { setError(requestError(cause)); } finally { setSaving(false); }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'], allowsMultipleSelection: field === 'photos', selectionLimit: field === 'photos' ? 20 : 1, quality: 0.85,
+      });
+      if (!result.canceled) {
+        for (const asset of result.assets) {
+          if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) throw new Error('Choose images of 5 MB or smaller.');
+          if (asset.mimeType && !['image/jpeg', 'image/png', 'image/webp'].includes(asset.mimeType)) throw new Error('Choose JPEG, PNG or WebP images.');
+        }
+        await enqueue('save', undefined, { field, assets: result.assets });
+      } else await enqueue('save');
+    } catch (cause) { setError(requestError(cause)); }
+    finally { if (mounted.current) setBusy(false); }
   }
-  async function deletePortfolio(id: number) {
-    setSaving(true); setError(null);
-    try { await authenticatedRequest(`/vendor/portfolio/${id}/`, { method: 'DELETE' }); setPortfolio((old) => old.filter((photo) => photo.id !== id)); }
-    catch (cause) { setError(requestError(cause)); } finally { setSaving(false); }
+
+  async function removePhoto(id: string) {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    setBusy(true);
+    try { await enqueue('remove_photo', undefined, undefined, id); }
+    finally { if (mounted.current) setBusy(false); }
   }
-  async function signOut() { await logout(); router.replace('/'); }
-  if (loading && !profile) return <SafeAreaView style={local.safe}><Loading /></SafeAreaView>;
+
+  async function signOut() {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    setBusy(true);
+    try { if (await enqueue('save')) { await logout(); router.replace('/'); } }
+    finally { if (mounted.current) setBusy(false); }
+  }
+
+  function renderField(field: WizardField) {
+    if (!wizard || !visibleField(field, answers)) return null;
+    const value = answers[field.name];
+    const label = field.name === 'price' ? ({ HOURLY: 'Price per hour (CAD)', PER_PERSON: 'Price per person (CAD)', PER_ITEM: 'Price per item (CAD)', STARTING_FROM: 'Starting price (CAD)' }[String(answers.pricing_type)] || 'Fixed price (CAD)') : field.label;
+    const fieldError = errors[field.name]?.join(' ');
+    if (field.kind === 'tags' || field.kind === 'choice') return <View key={field.name} style={local.field}>
+      <Text style={local.label}>{label}{field.required ? ' *' : ''}</Text>
+      <View style={discoveryStyles.chips}>{fieldChoices(field, wizard, answers).map((option) => <ChoiceChip key={option.value} label={option.label}
+        selected={field.kind === 'tags' ? (value as string[] || []).includes(option.value) : value === option.value} disabled={busy}
+        onPress={() => update(field.name, field.kind === 'tags' ? ((value as string[] || []).includes(option.value) ? (value as string[]).filter((id) => id !== option.value) : [...(value as string[] || []), option.value]) : option.value)} />)}</View>
+      {!!fieldError && <Text accessibilityRole="alert" style={local.error}>{fieldError}</Text>}
+    </View>;
+    if (field.kind === 'boolean') return <ChoiceChip key={field.name} label={label} selected={!!value} disabled={busy || (field.name === 'other_enabled' && answers.vendor_type === 'OTHER')} onPress={() => update(field.name, !value)} />;
+    return <Input key={field.name} label={`${label}${field.required ? ' *' : ''}`} accessibilityLabel={label} value={String(value ?? '')} editable={!busy}
+      error={fieldError} multiline={field.kind === 'textarea'} maxLength={field.max_length || undefined}
+      autoCapitalize={field.kind === 'email' || field.name.endsWith('_url') ? 'none' : 'sentences'}
+      keyboardType={field.kind === 'email' ? 'email-address' : field.kind === 'number' ? 'decimal-pad' : field.name === 'phone' ? 'phone-pad' : 'default'}
+      onChangeText={(text) => update(field.name, text)} />;
+  }
+
   if (status !== 'authenticated' || user?.role !== 'vendor') return null;
-  return <SafeAreaView style={local.safe}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={local.content}>
-    <View style={discoveryStyles.row}><Text style={local.wordmark}>den<Text style={local.dot}>.</Text></Text><Button label="Log out" variant="secondary" onPress={() => void signOut()} /></View>
-    <Text style={discoveryStyles.eyebrow}>VENDOR STUDIO</Text><Text style={discoveryStyles.title}>Your business, at a glance.</Text>
-    {profile && <View style={discoveryStyles.card}><Text style={discoveryStyles.badge}>{profile.approval_label.toUpperCase()}</Text><Text style={discoveryStyles.body}>{profile.approval_status === 'APPROVED' ? 'Your active profile can appear in customer discovery.' : profile.approval_status === 'REJECTED' ? 'Your profile needs changes before it can appear in discovery.' : 'Your profile will stay private until an admin approves it.'}</Text></View>}
-    {!!notice && <Text accessibilityRole="alert" style={discoveryStyles.body}>{notice}</Text>}
-    {!!profile?.review_feedback && <Text style={discoveryStyles.body}>Admin feedback: {profile.review_feedback}</Text>}
-    {error && <ErrorNotice message={error} retry={!profile ? () => void load() : undefined} />}
-    {form && <View style={discoveryStyles.card}>
-      {!removeLogo && (image?.uri || profile?.profile_image_url) && <Image source={{ uri: image?.uri || profile?.profile_image_url || '' }} alt="Vendor profile preview" style={local.image} />}
-      <Button label="Choose company logo" variant="secondary" disabled={saving} onPress={() => void chooseImage()} />
-      {image && <Button label="Cancel selected logo" variant="secondary" disabled={saving} onPress={() => setImage(null)} />}
-      {!!profile?.profile_image_url && <Button label={removeLogo ? 'Keep saved logo' : 'Remove saved logo on save'} variant="secondary" disabled={saving} onPress={() => { setRemoveLogo(!removeLogo); setImage(null); }} />}
-      <Input label="Company name" value={form.business_name} editable={!saving} maxLength={160} onChangeText={(value) => update('business_name', value)} />
-      <Text style={discoveryStyles.body}>Primary category</Text><View style={discoveryStyles.chips}>{categories.map((category) => <ChoiceChip key={category.id} label={category.name} selected={form.category === category.id} disabled={saving} onPress={() => update('category', category.id)} />)}</View>
-      <Text style={discoveryStyles.body}>Additional service categories (up to three)</Text><View style={discoveryStyles.chips}>{visibleVendorCategories.map((category) => <ChoiceChip key={category.id} label={category.name} selected={form.additional_categories.includes(category.id)} disabled={saving || (!form.additional_categories.includes(category.id) && form.additional_categories.length >= 3)} onPress={() => update('additional_categories', form.additional_categories.includes(category.id) ? form.additional_categories.filter((id) => id !== category.id) : [...form.additional_categories, category.id])} />)}</View>
-      {vendorExtraCategories.length > 0 && <Button label={showAllVendorCategories ? 'Show featured services' : 'Browse all services'} variant="secondary" disabled={saving} onPress={() => setShowAllVendorCategories(!showAllVendorCategories)} />}
-      {contactFields.map((key, index) => <Input key={key} label={contactLabels[index]} value={form[key]} editable={!saving} autoCapitalize={index < 2 ? 'words' : 'none'} keyboardType={key === 'business_email' ? 'email-address' : 'default'} maxLength={index < 2 ? 150 : 200} onChangeText={(value) => update(key, value)} />)}
-      <Text style={discoveryStyles.body}>Services</Text><View style={discoveryStyles.chips}>{options.service_tags.map((tag) => <ChoiceChip key={tag.id} label={tag.name} selected={form.service_tags.includes(tag.id)} disabled={saving} onPress={() => update('service_tags', form.service_tags.includes(tag.id) ? form.service_tags.filter((id) => id !== tag.id) : [...form.service_tags, tag.id])} />)}</View>
-      <Text style={discoveryStyles.body}>Service areas</Text><View style={discoveryStyles.chips}>{options.locations.map((area) => <ChoiceChip key={area.id} label={area.name} selected={form.service_locations.includes(area.id)} disabled={saving} onPress={() => update('service_locations', form.service_locations.includes(area.id) ? form.service_locations.filter((id) => id !== area.id) : [...form.service_locations, area.id])} />)}</View>
-      <Input label="Phone" keyboardType="phone-pad" value={form.phone} editable={!saving} maxLength={30} onChangeText={(value) => update('phone', value)} />
-      <Input label="City" value={form.city} editable={!saving} maxLength={100} onChangeText={(value) => update('city', value)} />
-      <View style={discoveryStyles.chips}>{options.locations.filter((area) => form.city.length > 0 && area.name.toLowerCase().includes(form.city.toLowerCase())).slice(0, 5).map((area) => <ChoiceChip key={area.id} label={area.name} selected={form.city === area.name} disabled={saving} onPress={() => update('city', area.name)} />)}</View>
-      <Input label="Other service areas" value={form.service_area} editable={!saving} maxLength={200} onChangeText={(value) => update('service_area', value)} />
-      <Input label="Short description" value={form.short_description} editable={!saving} multiline maxLength={500} onChangeText={(value) => update('short_description', value)} />
-      <Button label="Save basic information" loading={saving} onPress={() => void save()} />
-    </View>}
-    {profile && <View style={discoveryStyles.card}>
-      <Text style={discoveryStyles.title}>Portfolio</Text>
-      <Button label="Choose portfolio image" disabled={saving} variant="secondary" onPress={() => void chooseImage(true)} />
-      {portfolioImage && <><Image source={{ uri: portfolioImage.uri }} style={local.image} alt="New portfolio preview" /><Input label="Caption" value={caption} maxLength={240} editable={!saving} onChangeText={setCaption} /><Button label="Remove selected image" disabled={saving} variant="secondary" onPress={() => setPortfolioImage(null)} /><Button label="Upload portfolio image" loading={saving} onPress={() => void uploadPortfolio()} /></>}
-      {portfolio.map((photo) => <View key={photo.id}><Image source={{ uri: photo.image }} style={local.image} alt={photo.caption || 'Portfolio image'} /><Text style={discoveryStyles.body}>{photo.caption}</Text><Button label="Delete portfolio image" disabled={saving} variant="secondary" onPress={() => void deletePortfolio(photo.id)} /></View>)}
-    </View>}
-    {profile && <Button label="Edit full profile on web" variant="secondary" onPress={() => { void Linking.openURL(profile.full_profile_url).catch((cause: unknown) => setError(requestError(cause))); }} />}
-    <Text style={discoveryStyles.body}>Preview and submit your profile, add services and products, and manage advanced details in the full web studio.</Text>
+  if (!wizard) return <SafeAreaView style={local.safe}>{error ? <ErrorNotice message={error} retry={() => void load()} /> : <Loading />}</SafeAreaView>;
+  const section = wizard.sections[wizard.step - 1];
+  return <SafeAreaView style={local.safe}><ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={local.content}>
+    <View style={discoveryStyles.row}><Text style={local.wordmark}>den.</Text><Button label="Save & log out" variant="secondary" disabled={busy} onPress={() => void signOut()} /></View>
+    <Text style={discoveryStyles.eyebrow}>VENDOR STUDIO</Text><Text style={discoveryStyles.title}>Your business, one step at a time.</Text>
+    <Text style={discoveryStyles.badge}>{wizard.approval_label}</Text><Text style={discoveryStyles.body}>Submissions are reviewed by an admin before appearing in discovery.</Text>
+    {!!wizard.review_feedback && <Text style={discoveryStyles.body}>Admin feedback: {wizard.review_feedback}</Text>}
+    <Text accessibilityLiveRegion="polite" style={discoveryStyles.body}>{notice}</Text>
+    {error && <ErrorNotice message={error} retry={conflict.current ? () => void load() : undefined} />}
+    <View accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: 6, now: wizard.step, text: `Step ${wizard.step} of 6: ${section.title}` }}>
+      <Text style={local.label}>Step {wizard.step} of 6: {section.title}</Text><View style={local.track}><View style={[local.progress, { width: `${wizard.step / 6 * 100}%` }]} /></View>
+    </View>
+    <View style={discoveryStyles.chips}>{wizard.sections.map((item) => <ChoiceChip key={item.number} label={`${item.number}. ${item.title}`} selected={item.number === wizard.step} disabled={busy} onPress={() => void navigate('goto', item.number)} />)}</View>
+    <View style={discoveryStyles.card}>
+      <Text style={discoveryStyles.title}>{section.title}</Text>
+      {wizard.step === 1 && <><Button label="Choose company logo" variant="secondary" disabled={busy} onPress={() => void chooseImages('logo')} />{wizard.logo_url && <Image source={{ uri: wizard.logo_url }} accessibilityLabel="Company logo" style={local.image} />}</>}
+      {wizard.step === 4 && !!wizard.pricing_listing_title && <Text style={discoveryStyles.body}>Pricing for {wizard.pricing_listing_title}. Your other listings are kept.</Text>}
+      {section.fields.map(renderField)}
+      {wizard.step === 2 && <Text style={discoveryStyles.body}>Choose up to four services. Use Other for additional services. Previously saved services remain available to keep or remove.</Text>}
+      {wizard.step === 5 && <><Text style={discoveryStyles.body}>Photos are optional. JPEG, PNG or WebP, up to 5 MB each.</Text>
+        <Button label="Choose cover photo" variant="secondary" disabled={busy} onPress={() => void chooseImages('cover')} />
+        {wizard.cover_url && <Image source={{ uri: wizard.cover_url }} accessibilityLabel="Cover photo" style={local.image} />}
+        <Button label="Add portfolio photos" variant="secondary" disabled={busy} onPress={() => void chooseImages('photos')} />
+        {wizard.photos.map((photo) => <View key={photo.id}><Image source={{ uri: photo.url }} accessibilityLabel={photo.caption || 'Portfolio photo'} style={local.image} /><Text style={discoveryStyles.body}>{photo.caption}</Text><Button label="Remove photo" variant="secondary" disabled={busy} onPress={() => void removePhoto(photo.id)} /></View>)}
+      </>}
+      {wizard.step === 6 && <><Text style={discoveryStyles.body}>Check your answers before submitting.</Text>{wizard.review.map((item) => <View key={item.step} style={local.review}>
+        <View style={discoveryStyles.row}><Text style={local.label}>{item.title}</Text><Button label={`Edit ${item.title}`} variant="secondary" disabled={busy} onPress={() => void navigate('goto', item.step)} /></View>
+        {item.rows.map((row) => <View key={row.label}><Text style={local.label}>{row.label}</Text><Text style={discoveryStyles.body}>{row.value}</Text></View>)}
+        {item.step === 1 && (wizard.logo_url ? <Image source={{ uri: wizard.logo_url }} accessibilityLabel="Company logo" style={local.image} /> : <Text>No logo added.</Text>)}
+        {item.step === 5 && <>{wizard.cover_url && <Image source={{ uri: wizard.cover_url }} accessibilityLabel="Cover photo" style={local.image} />}{wizard.photos.length === 0 && <Text>No portfolio photos added.</Text>}{wizard.photos.map((photo) => <View key={photo.id}><Image source={{ uri: photo.url }} accessibilityLabel={photo.caption || 'Portfolio photo'} style={local.image} /><Text>{photo.caption}</Text></View>)}</>}
+      </View>)}</>}
+    </View>
+    <View style={local.field}>{wizard.step > 1 && <Button label="Back" variant="secondary" disabled={busy} onPress={() => void navigate('back')} />}
+      <Button label="Save progress" variant="secondary" disabled={busy} onPress={() => void navigate('save')} />
+      <Button label={wizard.step < 6 ? 'Continue' : 'Submit for admin approval'} loading={busy} onPress={() => void navigate(wizard.step < 6 ? 'next' : 'submit')} />
+    </View>
   </ScrollView></SafeAreaView>;
 }
+
 const local = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.light.background }, content: { padding: Spacing.four, paddingBottom: Spacing.six, gap: Spacing.three, maxWidth: 800, width: '100%', alignSelf: 'center' },
-  wordmark: { color: Colors.light.ink, fontFamily: Fonts.serif, fontSize: 34, fontWeight: '700' }, dot: { color: Colors.light.terracotta }, image: { width: 104, height: 104, borderRadius: 24, alignSelf: 'center' },
+  safe: { flex: 1, backgroundColor: Colors.light.background },
+  content: { padding: Spacing.four, paddingBottom: Spacing.six, gap: Spacing.three, maxWidth: 800, width: '100%', alignSelf: 'center' },
+  wordmark: { color: Colors.light.ink, fontFamily: Fonts.serif, fontSize: 34, fontWeight: '700' },
+  image: { width: 150, height: 150, borderRadius: 16 },
+  field: { gap: Spacing.two }, label: { color: Colors.light.ink, fontSize: 15, fontWeight: '600' }, error: { color: Colors.light.error },
+  track: { height: 8, borderRadius: 4, backgroundColor: Colors.light.line, marginTop: 8 }, progress: { height: 8, borderRadius: 4, backgroundColor: Colors.light.terracotta },
+  review: { gap: Spacing.two, paddingVertical: Spacing.three, borderBottomWidth: 1, borderBottomColor: Colors.light.line },
 });
