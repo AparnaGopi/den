@@ -8,6 +8,8 @@ services:
     startCommand: sh deploy/start.sh
     healthCheckPath: /health/
     autoDeployTrigger: off
+    domains:
+      - torontodecorden.com
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.14
@@ -18,9 +20,9 @@ services:
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DJANGO_ALLOWED_HOSTS
-        value: test.torontodecorden.com
+        value: torontodecorden.com,www.torontodecorden.com
       - key: DJANGO_CSRF_TRUSTED_ORIGINS
-        value: https://test.torontodecorden.com
+        value: https://torontodecorden.com,https://www.torontodecorden.com
       - key: DATABASE_URL
         fromDatabase:
           name: den-test-db

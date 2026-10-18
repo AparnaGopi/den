@@ -5,6 +5,7 @@
 The included `render.yaml` declares a free Python web service and a free
 PostgreSQL database. It generates a secret and connects the database automatically.
 The assigned Render hostname is added to the allowed hosts and CSRF origins.
+The custom domain is `torontodecorden.com`; Render also adds its `www` counterpart.
 Automatic deployments are off, so later commits do not publish unexpectedly.
 
 After pushing these files to your GitHub repository, sign in at
@@ -44,8 +45,8 @@ or administrator accounts. Use a dedicated staging database and a newly generate
 secret. Existing local users, files and vendor records are not uploaded.
 
 Configure an SMTP sender before relying on outgoing email. Login and registration
-tests do not verify email delivery. HTTPS enforcement applies only to the staging
-hostname; HSTS subdomain inclusion and browser preloading are intentionally off
+tests do not verify email delivery. HTTPS enforcement applies to Den's configured
+hostnames; HSTS subdomain inclusion and browser preloading are intentionally off
 because they could affect other services under your business domain. Django's
 deployment check reports those two policy warnings; do not enable them blindly.
 
@@ -69,8 +70,20 @@ commit administrator passwords or supply passwords in public build logs.
 First verify the provider URL: home page, customer registration/login, vendor
 registration and submission, admin approval, vendor discovery, event matches,
 filters, and image uploads. A pending vendor must stay out of discovery. Restart
-the service and verify that accounts and uploaded images persist. Then add
-`test.torontodecorden.com` in the hosting dashboard and copy its DNS instructions
-to the actual DNS provider. Preserve the main domain and existing mail records.
+the service and verify that accounts and uploaded images persist. In Squarespace
+DNS, point the `@` A record to `216.24.57.1` and the `www` CNAME to the exact
+provider hostname shown by Render (currently `den-gc2w.onrender.com` for the
+existing service). Use the target displayed in the service dashboard if it changes.
+Replace only conflicting website records for these names; preserve mail records.
+The main domain will now open Den. Verify the root domain and `www` in Render.
 Google Workspace domain verification is separate from website hosting and DNS
 management. Confirm HTTPS and login again on the custom domain.
+
+For an existing manually created Render service, select branch
+`codex/prepare-test-deployment`, leave Root Directory empty, and use the build and
+start commands above. Updating this branch does not update a manual service's
+environment variables: set `DJANGO_ALLOWED_HOSTS` and
+`DJANGO_CSRF_TRUSTED_ORIGINS` to the values in `deploy/environment.example`,
+and configure the secret and database URL. A Blueprint-managed service needs a
+Blueprint sync to apply YAML changes. Then choose Manual Deploy > Deploy latest
+commit because automatic deploys are disabled.
