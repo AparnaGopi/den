@@ -1,0 +1,20 @@
+# Set these in your hosting dashboard, never in public source control.
+DJANGO_SETTINGS_MODULE=config.settings_deploy
+DJANGO_SECRET_KEY=REPLACE_WITH_A_NEW_RANDOM_SECRET_OF_AT_LEAST_50_CHARACTERS
+DJANGO_ALLOWED_HOSTS=test.torontodecorden.com,YOUR_SERVICE_HOSTNAME
+DJANGO_CSRF_TRUSTED_ORIGINS=https://test.torontodecorden.com,https://YOUR_SERVICE_HOSTNAME
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require
+# Add only browser origins that need cross-origin API access.
+DJANGO_CORS_ALLOWED_ORIGINS=
+DJANGO_EMAIL_HOST=YOUR_SMTP_HOST
+DJANGO_EMAIL_PORT=587
+DJANGO_EMAIL_USERNAME=REPLACE_IN_HOSTING_DASHBOARD
+DJANGO_EMAIL_PASSWORD=REPLACE_IN_HOSTING_DASHBOARD
+DJANGO_DEFAULT_FROM_EMAIL=Den <noreply@torontodecorden.com>
+
+# For public image uploads, use an S3-compatible bucket with public-read object
+# delivery configured at the bucket/CDN. Credentials belong only in the host.
+DEN_STORAGE_BACKEND=storages.backends.s3.S3Storage
+DEN_STORAGE_OPTIONS={"bucket_name":"YOUR_BUCKET","region_name":"YOUR_REGION","querystring_auth":false,"file_overwrite":false,"default_acl":null}
+AWS_ACCESS_KEY_ID=REPLACE_IN_HOSTING_DASHBOARD
+AWS_SECRET_ACCESS_KEY=REPLACE_IN_HOSTING_DASHBOARD

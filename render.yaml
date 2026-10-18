@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: den-test
+    runtime: python
+    region: virginia
+    plan: free
+    buildCommand: sh deploy/build.sh
+    startCommand: sh deploy/start.sh
+    healthCheckPath: /health/
+    autoDeployTrigger: off
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.14
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings_deploy
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: test.torontodecorden.com
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        value: https://test.torontodecorden.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: den-test-db
+          property: connectionString
+
+databases:
+  - name: den-test-db
+    plan: free
+    region: virginia
+    databaseName: den_test
+    user: den_test
