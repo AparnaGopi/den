@@ -20,6 +20,7 @@ export function DiscoveryScreen({ title, children }: PropsWithChildren<{ title: 
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={discoveryStyles.content}>
       <View style={discoveryStyles.row}>
         <Pressable accessibilityRole="button" onPress={() => router.replace('/home')}><Text style={discoveryStyles.link}>Your Den</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/messages')}><Text style={discoveryStyles.link}>Messages</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => router.push('/profile')}><Text style={discoveryStyles.link}>Profile</Text></Pressable>
       </View>
       <Text style={discoveryStyles.eyebrow}>ROOM FOR A GOOD GATHERING</Text>

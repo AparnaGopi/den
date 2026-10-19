@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Conversation | Den{% endblock %}
+{% block content %}
+<section class="management-page chat-page"><a href="{% url 'core:message-inbox' %}">← All messages</a>
+<h1>{% if user.role == 'customer' %}{{ conversation.vendor.business_name }}{% else %}{{ conversation.customer.first_name|default:'Customer' }} #{{ conversation.customer_id }}{% endif %}</h1>
+{% if conversation.event and conversation.event.status != 'ARCHIVED' %}<details class="shared-event"><summary>Shared event details</summary><p>{{ conversation.event.get_event_type_display }} · {{ conversation.event.event_date|date:"M j, Y" }} · {{ conversation.event.city }}</p><p>{{ conversation.event.guest_count }} guests · Budget: ${{ conversation.event.budget_min }}–${{ conversation.event.budget_max }}</p><p>{{ conversation.event.notes|linebreaksbr }}</p></details>{% endif %}
+<div class="chat-history" aria-live="polite">{% for item in chat_messages %}<article class="chat-bubble{% if item.sender_id == user.pk %} chat-mine{% endif %}"><strong>{% if item.sender_id == user.pk %}You{% elif item.sender_id == conversation.vendor.user_id %}{{ conversation.vendor.business_name }}{% else %}Customer{% endif %}</strong><p>{{ item.body|linebreaksbr }}</p><small>{{ item.created_at|date:"M j, g:i a" }}</small></article>{% empty %}<p>Tell the vendor about your event and what you need help with.</p>{% endfor %}</div>
+{% if can_reply %}<form method="post" class="chat-composer">{% csrf_token %}{% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}<label for="message-body">Your message</label><textarea id="message-body" name="body" maxlength="4000" rows="4" required>{{ body }}</textarea><button type="submit" class="button button-primary">Send message</button></form>{% else %}<p>You have used your three free client chats. <a href="{% url 'core:vendor-chat-plan' %}">View subscription options</a> to reply to more clients.</p>{% endif %}
+</section>
+{% endblock %}

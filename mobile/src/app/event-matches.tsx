@@ -5,6 +5,7 @@ import { ChoiceChip, DiscoveryScreen, ErrorNotice, Loading, discoveryStyles as s
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/context/auth-context';
+import type { Conversation } from '@/types/chat';
 import { eventTitle, formatEventDate, helpTypes, requestError, type Category, type DiscoveryService, type EventRequest, type MatchPage, type VendorMatch } from '@/types/events';
 
 type Filters = { category: string; help_types: string[]; service_tag: string; listing_type: string; location: string; price_min: string; price_max: string; rating_min: string };
@@ -102,7 +103,11 @@ export default function EventMatchesScreen() {
       <Text style={s.body}>{vendor.rating === null ? 'No verified reviews yet' : `${vendor.rating}/5 | ${vendor.review_count} verified Den reviews`}</Text>
       {vendor.matching_reasons.filter((reason) => reason.points > 0).map((reason) => <Text key={reason.code} style={s.body}>• {reason.label}</Text>)}
       {vendor.listings.map((listing) => <Text key={listing.id} style={s.body}>{listing.title}{listing.service_tags.length ? ` · ${listing.service_tags.map((tag) => tag.name).join(', ')}` : ''} · {listing.price === null || listing.pricing_type === 'CONTACT_FOR_QUOTE' ? 'Contact for a quote' : `${listing.pricing_type === 'STARTING_FROM' ? 'From ' : ''}$${listing.price}${listing.pricing_type === 'HOURLY' ? '/hour' : ''}`}</Text>)}
-      <Button label="View Profile" variant="secondary" onPress={() => { void Linking.openURL(vendor.profile_url).catch((cause: unknown) => setActionError(requestError(cause))); }} />
+      <Button label="View Profile" variant="secondary" onPress={() => { void authenticatedRequest(`/vendors/${vendor.id}/visit/`, { method: 'POST' }).then(() => Linking.openURL(vendor.profile_url)).catch((cause: unknown) => setActionError(requestError(cause))); }} />
+      <Button label={event ? 'Message vendor & share event' : 'Message vendor'} variant="secondary" onPress={() => {
+        void authenticatedRequest<Conversation>(`/vendors/${vendor.id}/contact/`, { method: 'POST', body: JSON.stringify(event ? { event_id: event.id } : {}) })
+          .then((chat) => router.push({ pathname: '/conversation', params: { id: chat.id } })).catch((cause: unknown) => setActionError(requestError(cause)));
+      }} />
       {event && <Button label={event.saved_vendor_ids.includes(vendor.id) ? 'Saved · Remove' : 'Save'} loading={savingId === vendor.id} disabled={savingId !== null} onPress={() => void toggleSave(vendor)} />}
     </View>)}
     {metadata?.next && <Button label="Load more vendors" variant="secondary" loading={loading} onPress={() => void load(page + 1)} />}

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
 from PIL import Image
 
 from accounts.models import User
@@ -104,6 +105,7 @@ class VendorProfile(models.Model):
 	EXPERIENCE_CHOICES = [(0, "Less than a year")] + [(n, f"{n} years") for n in range(1, 51)]
 	contact_first_name = models.CharField(max_length=150, blank=True)
 	vendor_type = models.CharField(max_length=30, blank=True)
+	help_types = models.JSONField(default=list, blank=True, help_text="Services selected from customer refine options.")
 	other_services = models.TextField(blank=True, max_length=2000)
 	contact_last_name = models.CharField(max_length=150, blank=True)
 	business_email = models.EmailField(blank=True)
@@ -150,8 +152,10 @@ class VendorProfile(models.Model):
 	def clean(self):
 		if self.user_id and self.user.role != User.Role.VENDOR:
 			raise ValidationError({"user": "Only vendor accounts can own vendor profiles."})
+		if not isinstance(self.help_types, list) or any(value not in EventRequest.HelpType.values for value in self.help_types):
+			raise ValidationError({"help_types": "Choose supported services."})
 
-	IDENTITY_FIELDS = ("business_name", "primary_category_id", "contact_first_name", "contact_last_name", "business_email", "phone", "profile_image", "website_url", "instagram_url", "google_business_url")
+	IDENTITY_FIELDS = ("business_name", "primary_category_id", "help_types", "contact_first_name", "contact_last_name", "business_email", "phone", "profile_image", "website_url", "instagram_url", "google_business_url")
 
 	def save(self, *args, **kwargs):
 		if self.pk:
@@ -164,7 +168,8 @@ class VendorProfile(models.Model):
 
 	def submission_errors(self):
 		errors = {}
-		for field in ("business_name", "contact_first_name", "contact_last_name", "business_email", "phone", "city", "description", "primary_category"):
+		fields = ("business_name", "city", "short_description") if self.help_types else ("business_name", "contact_first_name", "contact_last_name", "business_email", "phone", "city", "description", "primary_category")
+		for field in fields:
 			if not getattr(self, field):
 				errors[field] = "Complete this field before submitting."
 		if self.primary_category_id and not self.primary_category.is_active:
@@ -174,6 +179,11 @@ class VendorProfile(models.Model):
 	@property
 	def is_approved(self):
 		return self.approval_status == self.ApprovalStatus.APPROVED
+
+	@property
+	def help_type_labels(self):
+		labels = dict(EventRequest.HelpType.choices)
+		return [labels[value] for value in self.help_types if value in labels]
 
 	def __str__(self):
 		return self.business_name
@@ -234,6 +244,7 @@ class Listing(models.Model):
 	listing_type = models.CharField(max_length=20, choices=ListingType.choices)
 	service_tags = models.ManyToManyField(VendorTag, blank=True, limit_choices_to={"kind": "SERVICE"})
 	help_types = models.JSONField(default=list, blank=True, help_text="Event services this listing provides.")
+	is_profile_listing = models.BooleanField(default=False, editable=False)
 	title = models.CharField(max_length=160)
 	category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="listings", null=True, blank=True)
 	image = models.ImageField(upload_to=vendor_upload_path, validators=[validate_vendor_image])
@@ -246,6 +257,7 @@ class Listing(models.Model):
 
 	class Meta:
 		ordering = ("-is_active", "title")
+		constraints = [models.UniqueConstraint(fields=("profile", "listing_type"), condition=models.Q(is_profile_listing=True), name="one_profile_listing_per_type")]
 
 	def clean(self):
 		if not isinstance(self.help_types, list) or any(value not in EventRequest.HelpType.values for value in self.help_types):
@@ -362,6 +374,65 @@ class EventRequest(models.Model):
 
     def __str__(self):
         return f"{self.get_event_type_display() or 'Draft event'} ({self.pk})"
+
+
+class VendorChatSubscription(models.Model):
+    vendor = models.OneToOneField(VendorProfile, on_delete=models.CASCADE, related_name="chat_subscription")
+    active_until = models.DateTimeField(null=True, blank=True)
+    requested_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def is_active(self):
+        return bool(self.active_until and self.active_until > timezone.now())
+
+
+class Conversation(models.Model):
+    vendor = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name="conversations")
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="vendor_conversations")
+    event = models.ForeignKey(EventRequest, null=True, blank=True, on_delete=models.SET_NULL, related_name="conversations")
+    trial_access = models.BooleanField(default=False, editable=False)
+    vendor_first_reply_at = models.DateTimeField(null=True, blank=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-updated_at", "-pk")
+        constraints = [models.UniqueConstraint(fields=("vendor", "customer"), name="one_chat_per_vendor_customer")]
+
+    def clean(self):
+        if self.customer_id and self.customer.role != User.Role.CUSTOMER:
+            raise ValidationError({"customer": "Choose a customer account."})
+        if self.event_id and self.event.customer_id != self.customer_id:
+            raise ValidationError({"event": "Choose this customer's event."})
+
+
+class ChatMessage(models.Model):
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name="messages")
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chat_messages")
+    body = models.TextField(max_length=4000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("created_at", "pk")
+
+    def clean(self):
+        if not self.body.strip():
+            raise ValidationError({"body": "Write a message."})
+        if self.conversation_id and self.sender_id not in (self.conversation.customer_id, self.conversation.vendor.user_id):
+            raise ValidationError({"sender": "Only participants can send messages."})
+
+
+class VendorProfileVisit(models.Model):
+    vendor = models.ForeignKey(VendorProfile, on_delete=models.CASCADE, related_name="profile_visits")
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name="vendor_profile_visits")
+    date = models.DateField(default=timezone.localdate)
+    views = models.PositiveIntegerField(default=1)
+    last_visited_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("vendor", "customer", "date"), name="one_customer_visit_per_day")]
 
 
 class Review(models.Model):

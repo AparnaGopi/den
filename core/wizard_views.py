@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from . import vendor_wizard as wizard
@@ -40,7 +41,7 @@ def vendor_wizard(request):
             return JsonResponse({**wizard.payload(draft, request), 'errors': errors}, status=status)
         if not errors:
             messages.success(request, 'Submitted for admin approval.' if request.POST.get('action') == 'submit' else 'Progress saved.')
-            return redirect('core:vendor-profile-manage')
+            return redirect(reverse('core:vendor-profile-manage') + '?guided=1')
     data = wizard.payload(draft, request)
     step = draft.current_step
     form = wizard.step_form(draft, step)

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Your company | Den{% endblock %}
+{% block content %}
+<section class="management-page quick-vendor-page">
+  <p class="eyebrow">Vendor studio</p><h1>Your company, simply.</h1>
+  <p>Add the essentials, show your work, and choose the services customers can find you for.</p>
+  {% if profile.review_feedback %}<p role="status">Review feedback: {{ profile.review_feedback }}</p>{% endif %}
+  <form method="post" enctype="multipart/form-data" class="management-form quick-vendor-form">{% csrf_token %}
+    <input type="hidden" name="quick_profile" value="1">{{ form.non_field_errors }}
+    <div class="quick-profile-grid">
+      <div class="quick-field">{{ form.business_name.as_field_group }}</div>
+      <div class="quick-field">{{ form.profile_image.as_field_group }}</div>
+    </div>
+    <div class="quick-field">{{ form.short_description.as_field_group }}</div>
+    <fieldset class="quick-services"><legend>Things you do</legend><p>Choose the same service tags customers use to refine their search.</p>{{ form.help_types.errors }}<div class="service-chips">{{ form.help_types }}</div></fieldset>
+    <div class="quick-field" id="quick-other-services"{% if 'OTHER' not in form.help_types.value %} hidden{% endif %}>{{ form.other_services.as_field_group }}</div>
+    <div class="quick-field">{{ form.city.as_field_group }}<datalist id="vendor-cities">{% for city in cities %}<option value="{{ city.name }}">{% endfor %}</datalist></div>
+    <details class="quick-areas"><summary>Other areas you serve (optional)</summary><div class="service-chips">{{ form.service_locations }}{{ form.service_locations.errors }}</div></details>
+    <div class="quick-field">{{ form.pictures.as_field_group }}<small>Choose several JPEG, PNG or WebP photos, up to 5 MB each. You can add more later.</small></div>
+    {% if profile.portfolio_entries.exists %}<div class="quick-photo-grid">{% for photo in profile.portfolio_entries.all %}<img src="{{ photo.image.url }}" alt="{{ photo.caption|default:'Your work' }}" loading="lazy">{% endfor %}</div><p><a href="{% url 'core:vendor-portfolio-manage' %}">Manage existing pictures</a></p>{% endif %}
+    <button type="submit" class="button button-primary">Save & preview</button>
+  </form>
+  <details class="quick-areas"><summary>More company details (optional)</summary><p><a href="{% url 'core:vendor-profile-manage' %}?advanced=1">Edit contact details, categories and links</a> · <a href="{% url 'core:vendor-listings-manage' %}">Add packages and pricing</a> · <a href="{% url 'core:vendor-profile-manage' %}?guided=1">Use guided setup</a></p></details>
+</section>
+<script>
+const other = document.querySelector('input[name="help_types"][value="OTHER"]');
+const details = document.getElementById('quick-other-services');
+if (other && details) { const update = () => { details.hidden = !other.checked; }; other.addEventListener('change', update); update(); }
+</script>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Vendor chat access | Den{% endblock %}
+{% block content %}
+<section class="management-page"><p class="eyebrow">Vendor chat</p><h1>Make room for more clients.</h1>
+<p>Your first three client chats are free. Continue talking to those clients without using another free chat.</p>
+<div class="vendor-stat-grid"><div><strong>{{ plan.free_clients_remaining }}</strong><span>Free client chats left</span></div><div><strong>{% if plan.active %}Active{% else %}Free{% endif %}</strong><span>Chat plan{% if plan.active_until and plan.active %} · until {{ plan.active_until|date:"M j, Y" }}{% endif %}</span></div></div>
+{% if not plan.active %}<p>A subscription unlocks chats with more clients. Paid subscriptions are not open yet.</p>{% if plan.requested %}<p role="status">Your interest is registered. You have not been charged.</p>{% else %}<form method="post">{% csrf_token %}<button type="submit" class="button button-primary">Notify me when subscriptions open</button></form>{% endif %}{% endif %}
+<p><a href="{% url 'core:message-inbox' %}">Back to messages</a></p></section>
+{% endblock %}
