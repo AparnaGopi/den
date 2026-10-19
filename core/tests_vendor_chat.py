@@ -28,6 +28,30 @@ class VendorQuickAndChatTests(TestCase):
         send_message(self.customers[index], conversation.pk, "Please help with our event.")
         return conversation
 
+    def test_contact_editor_updates_only_contact_details(self):
+        self.client.force_login(self.owner)
+        url = reverse("core:vendor-profile-manage") + "?contact=1"
+        response = self.client.get(url)
+        self.assertContains(response, "Save contact details")
+        self.assertNotContains(response, 'name="primary_category"')
+        response = self.client.post(url, {"contact_details": "1", "business_email": "hello@example.com", "phone": "4165550100", "business_name": "Unwanted change"})
+        self.assertEqual(response.status_code, 302)
+        self.vendor.refresh_from_db()
+        self.assertEqual(self.vendor.business_email, "hello@example.com")
+        self.assertEqual(self.vendor.business_name, "Quick Studio")
+        self.assertEqual(self.vendor.approval_status, "PENDING")
+        self.assertEqual(self.vendor.help_types, ["DECORATOR"])
+
+    def test_contact_editor_validation_and_access(self):
+        url = reverse("core:vendor-profile-manage") + "?contact=1"
+        self.client.force_login(self.customers[0])
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.force_login(self.owner)
+        response = self.client.post(url, {"contact_details": "1", "business_email": "invalid", "instagram_url": "invalid"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("business_email", response.context["form"].errors)
+        self.assertContains(response, 'class="quick-areas" open')
+
     def image(self, name="work.png"):
         stream = BytesIO()
         Image.new("RGB", (10, 10), "blue").save(stream, format="PNG")
