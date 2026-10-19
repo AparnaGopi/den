@@ -198,7 +198,21 @@ footer p { margin: 0; }
 .discovery-field .helptext { color: var(--muted); font: .75rem/1.45 Arial, sans-serif; margin-top: 6px; overflow-wrap: anywhere; }
 .discovery-field .errorlist { color: #9d3425; font: .85rem/1.45 Arial, sans-serif; padding-left: 20px; }
 .discovery-field input, .discovery-field select, .discovery-field textarea { min-width: 0; max-width: 100%; }
-.discovery-form > .button { margin-top: 24px; }
+.discovery-form > .button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 48px;
+  margin: 24px 0 0 auto;
+  border-radius: 10px;
+  text-align: center;
+  white-space: normal;
+}
+@media (max-width: 760px) {
+  .discovery-form > .button { width: 100%; }
+}
 
 .discovery-field:not([hidden]) { display: flex; flex-direction: column; }
 .discovery-field > label { order: 0; }
