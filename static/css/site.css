@@ -190,3 +190,29 @@ footer p { margin: 0; }
 /* Keep long vendor names and native form controls inside narrow screens. */
 .discovery-steps fieldset, .match-filters > div, .vendor-match-card { min-width: 0; }
 .vendor-match-card { overflow-wrap: anywhere; }
+
+/* Keep each discovery answer together within its grid column. */
+.discovery-field { min-width: 0; margin-bottom: 16px; }
+.form-grid > .discovery-field { margin-bottom: 0; }
+.discovery-steps .form-grid { margin-bottom: 16px; align-items: start; }
+.discovery-field .helptext { color: var(--muted); font: .75rem/1.45 Arial, sans-serif; margin-top: 6px; overflow-wrap: anywhere; }
+.discovery-field .errorlist { color: #9d3425; font: .85rem/1.45 Arial, sans-serif; padding-left: 20px; }
+.discovery-field input, .discovery-field select, .discovery-field textarea { min-width: 0; max-width: 100%; }
+.discovery-form > .button { margin-top: 24px; }
+
+.discovery-field:not([hidden]) { display: flex; flex-direction: column; }
+.discovery-field > label { order: 0; }
+.discovery-field > input, .discovery-field > select, .discovery-field > textarea { order: 1; }
+.discovery-field > .helptext { order: 2; }
+.discovery-field > .errorlist { order: 3; margin: 6px 0 0; }
+
+/* Equal control heights keep dates, budgets and style choices aligned. */
+.discovery-field > input:not([type="checkbox"]):not([type="radio"]),
+.discovery-field > select {
+  box-sizing: border-box;
+  height: 48px;
+  min-height: 48px;
+  line-height: 1.4;
+}
+.discovery-field > textarea { min-height: 120px; resize: vertical; }
+.discovery-form [hidden] { display: none !important; }
