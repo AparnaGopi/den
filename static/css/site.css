@@ -205,3 +205,14 @@ footer p { margin: 0; }
 .discovery-field > input, .discovery-field > select, .discovery-field > textarea { order: 1; }
 .discovery-field > .helptext { order: 2; }
 .discovery-field > .errorlist { order: 3; margin: 6px 0 0; }
+
+/* Equal control heights keep dates, budgets and style choices aligned. */
+.discovery-field > input:not([type="checkbox"]):not([type="radio"]),
+.discovery-field > select {
+  box-sizing: border-box;
+  height: 48px;
+  min-height: 48px;
+  line-height: 1.4;
+}
+.discovery-field > textarea { min-height: 120px; resize: vertical; }
+.discovery-form [hidden] { display: none !important; }
