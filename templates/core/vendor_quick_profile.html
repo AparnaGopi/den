@@ -4,6 +4,7 @@
 <section class="management-page quick-vendor-page">
   <p class="eyebrow">Vendor studio</p><h1>Your company, simply.</h1>
   <p>Add the essentials, show your work, and choose the services customers can find you for.</p>
+  <p><a href="{% url 'core:vendor-profile-manage' %}?contact=1">Edit contact details</a></p>
   {% if profile.review_feedback %}<p role="status">Review feedback: {{ profile.review_feedback }}</p>{% endif %}
   <form method="post" enctype="multipart/form-data" class="management-form quick-vendor-form">{% csrf_token %}
     <input type="hidden" name="quick_profile" value="1">{{ form.non_field_errors }}
@@ -20,7 +21,7 @@
     {% if profile.portfolio_entries.exists %}<div class="quick-photo-grid">{% for photo in profile.portfolio_entries.all %}<img src="{{ photo.image.url }}" alt="{{ photo.caption|default:'Your work' }}" loading="lazy">{% endfor %}</div><p><a href="{% url 'core:vendor-portfolio-manage' %}">Manage existing pictures</a></p>{% endif %}
     <button type="submit" class="button button-primary">Save & preview</button>
   </form>
-  <details class="quick-areas"><summary>More company details (optional)</summary><p><a href="{% url 'core:vendor-profile-manage' %}?advanced=1">Edit contact details, categories and links</a> · <a href="{% url 'core:vendor-listings-manage' %}">Add packages and pricing</a> · <a href="{% url 'core:vendor-profile-manage' %}?guided=1">Use guided setup</a></p></details>
+  <details class="quick-areas"><summary>Advanced settings (optional)</summary><p><a href="{% url 'core:vendor-profile-manage' %}?advanced=1">Additional business details</a> · <a href="{% url 'core:vendor-listings-manage' %}">Packages and pricing</a></p></details>
 </section>
 <script>
 const other = document.querySelector('input[name="help_types"][value="OTHER"]');
