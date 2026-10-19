@@ -43,6 +43,54 @@ class CustomerWebDiscoveryTests(TestCase):
         self.assertContains(results, "Table Studio")
         self.assertContains(results, "Approved")
 
+    def test_custom_event_type_required_and_answers_survive_validation_errors(self):
+        url = reverse("core:event-discovery")
+        data = {**self.payload(), "event_type": "OTHER", "custom_event_type": ""}
+        response = self.client.post(url, data)
+        self.assertIn("custom_event_type", response.context["form"].errors)
+        self.assertContains(response, '<div class="discovery-field" id="custom-event-type-field">')
+        self.assertTrue(response.context["form"].fields["custom_event_type"].required)
+        data.update(custom_event_type="Retirement dinner", budget_max="1")
+        response = self.client.post(url, data)
+        form = response.context["form"]
+        self.assertEqual(form["event_type"].value(), "OTHER")
+        self.assertEqual(form["custom_event_type"].value(), "Retirement dinner")
+        self.assertEqual(form["theme"].value(), "Warm")
+        self.assertEqual(form["help_types"].value(), self.payload()["help_types"])
+        self.assertContains(response, 'value="Retirement dinner"')
+
+    def test_draft_custom_event_type_and_switch_to_birthday(self):
+        event = EventRequest.objects.create(customer=self.customer, event_type="OTHER", custom_event_type="Retirement dinner")
+        url = reverse("core:event-discovery") + f"?event_id={event.pk}"
+        response = self.client.get(url)
+        self.assertContains(response, 'value="Retirement dinner"')
+        self.assertContains(response, '<div class="discovery-field" id="custom-event-type-field">')
+        # A stale submitted custom value must not survive a standard event type.
+        response = self.client.post(url, {**self.payload(), "event_type": "BIRTHDAY", "custom_event_type": "Retirement dinner"})
+        self.assertRedirects(response, reverse("core:event-matches", args=[event.pk]))
+        event.refresh_from_db()
+        self.assertEqual(event.custom_event_type, "")
+        self.assertEqual(event.event_type, "BIRTHDAY")
+        self.assertEqual(event.status, EventRequest.Status.READY)
+        response = self.client.post(reverse("core:event-discovery"), {**self.payload(), "event_type": "BIRTHDAY", "budget_max": "1"})
+        self.assertContains(response, '<div class="discovery-field" id="custom-event-type-field" hidden>')
+        self.assertFalse(response.context["form"].fields["custom_event_type"].required)
+        self.assertTrue(response.context["form"].fields["custom_event_type"].widget.attrs["disabled"])
+
+    def test_empty_dashboard_keeps_actions_and_existing_event_cards(self):
+        url = reverse("core:customer-dashboard")
+        response = self.client.get(url)
+        self.assertContains(response, "Find vendors")
+        self.assertContains(response, "Help me refine")
+        self.assertNotContains(response, "Plan your first event")
+        draft = EventRequest.objects.create(customer=self.customer, event_type="BIRTHDAY")
+        ready = EventRequest.objects.create(customer=self.customer, event_type="WEDDING", status=EventRequest.Status.READY)
+        response = self.client.get(url)
+        self.assertContains(response, f'?event_id={draft.pk}')
+        self.assertContains(response, reverse("core:event-matches", args=[ready.pk]))
+        self.assertContains(response, "Continue planning")
+        self.assertContains(response, "View vendor matches")
+
     def test_pending_vendor_is_not_rendered_and_other_customer_event_is_hidden(self):
         event = EventRequest.objects.create(customer=self.customer, status=EventRequest.Status.READY)
         self.profile.approval_status = VendorProfile.ApprovalStatus.PENDING; self.profile.save(update_fields=["approval_status"])

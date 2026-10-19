@@ -168,6 +168,10 @@ class EventDiscoveryForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["required_categories"].queryset = Category.objects.filter(is_active=True)
+        is_other = self["event_type"].value() == EventRequest.EventType.OTHER
+        self.fields["custom_event_type"].required = is_other
+        if not is_other:
+            self.fields["custom_event_type"].widget.attrs["disabled"] = True
         self.fields["city"].widget.attrs.update({"list": "gta-locations", "autocomplete": "off"})
         self.fields["other_help_text"].required = False
         self.fields["other_help_text"].widget = forms.TextInput(attrs={"maxlength": 500, "placeholder": "Tell us what kind of help you need"})
@@ -212,8 +216,8 @@ class EventDiscoveryForm(forms.ModelForm):
                 self.add_error("other_help_text", "Please describe the other help you need.")
         else:
             cleaned["other_help_text"] = ""
-        if cleaned.get("event_type") == EventRequest.EventType.OTHER and not cleaned.get("custom_event_type"):
-            self.add_error("custom_event_type", "Tell us what kind of event you are planning.")
+        if cleaned.get("event_type") and cleaned["event_type"] != EventRequest.EventType.OTHER:
+            cleaned["custom_event_type"] = ""
         minimum, maximum = cleaned.get("budget_min"), cleaned.get("budget_max")
         if minimum is not None and maximum is not None and minimum > maximum:
             self.add_error("budget_max", "Maximum budget must be at least the minimum budget.")
