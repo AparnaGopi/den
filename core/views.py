@@ -256,6 +256,21 @@ def event_discovery(request):
 
 
 @login_required
+@require_http_methods(["GET", "POST"])
+def event_search_delete(request, event_id):
+    if request.user.role != User.Role.CUSTOMER:
+        raise PermissionDenied
+    event = get_object_or_404(EventRequest, pk=event_id, customer=request.user)
+    if request.method == "POST":
+        # Remove the search from the dashboard without deleting vendor reviews.
+        event.status = EventRequest.Status.ARCHIVED
+        event.save(update_fields=("status", "updated_at"))
+        messages.success(request, "Your saved vendor search has been removed.")
+        return redirect("core:customer-dashboard")
+    return render(request, "core/event_search_delete.html", {"event": event})
+
+
+@login_required
 def event_matches(request, event_id):
     if request.user.role != User.Role.CUSTOMER:
         raise PermissionDenied

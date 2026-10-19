@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Delete saved search | Den{% endblock %}
+{% block content %}
+<section class="dashboard-page">
+  <p class="eyebrow">Your Den</p>
+  <h1>Delete this search?</h1>
+  <p class="dashboard-intro">Remove your {{ event.get_event_type_display|default:"event" }} vendor search{% if event.event_date %} for {{ event.event_date|date:"M j, Y" }}{% endif %} from your dashboard? Your vendor reviews will be kept.</p>
+  <form method="post" class="search-delete-actions">
+    {% csrf_token %}
+    <a class="button button-secondary" href="{% url 'core:customer-dashboard' %}">Keep search</a>
+    <button type="submit" class="button button-primary">Delete search</button>
+  </form>
+</section>
+{% endblock %}
