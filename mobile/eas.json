@@ -10,6 +10,17 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://torontodecorden.com/api/v1"
       }
+    },
+    "preview": {
+      "distribution": "internal",
+      "environment": "production",
+      "developmentClient": false,
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://torontodecorden.com/api/v1"
+      }
     }
   },
   "submit": {
