@@ -2,6 +2,15 @@
 {% block content %}
 <section class="hero">
     <div class="hero-copy">
+        {% if user.is_authenticated and user.role == 'vendor' %}
+        <p class="eyebrow">Grow with Den</p>
+        <h1>Grow your event business with Den.</h1>
+        <p class="hero-text">Showcase your services, connect with clients, and manage your enquiries in one place.</p>
+        <div class="hero-actions">
+            <a class="button button-primary" href="{% url 'core:vendor-profile-manage' %}">Manage my profile</a>
+            <a class="button button-secondary" href="{% url 'core:message-inbox' %}">View messages</a>
+        </div>
+        {% else %}
         <p class="eyebrow">Gather beautifully</p>
         <h1>Plan your event in one place.</h1>
         <p class="hero-text">Find the people, pieces, and inspiration to make your next gathering feel like yours.</p>
@@ -9,6 +18,7 @@
             <a class="button button-primary" href="{% if user.is_authenticated %}{% url 'core:vendor-discovery' %}{% else %}{% url 'accounts:register' %}{% endif %}">Find Vendors</a>
             <a class="button button-secondary" href="{% url 'accounts:vendor-register' %}">Become a Vendor</a>
         </div>
+        {% endif %}
     </div>
     <div class="hero-mark" aria-hidden="true"><span>den</span><small>make room for what matters</small></div>
 </section>
