@@ -1,6 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Edit vendor profile | Den{% endblock %}
 {% block content %}
+{% if contact_only %}
+<section class="management-page quick-vendor-page">
+  <p class="eyebrow">Vendor studio</p><h1>Contact details</h1>
+  <p>Update how customers can reach your business. These details do not change your login email.</p>
+  <form method="post" class="management-form quick-vendor-form">
+    {% csrf_token %}<input type="hidden" name="contact_details" value="1">
+    {{ form.non_field_errors }}
+    <div class="quick-profile-grid">
+      <div class="quick-field">{{ form.contact_first_name.as_field_group }}</div>
+      <div class="quick-field">{{ form.contact_last_name.as_field_group }}</div>
+      <div class="quick-field">{{ form.business_email.as_field_group }}</div>
+      <div class="quick-field">{{ form.phone.as_field_group }}</div>
+    </div>
+    <p>Your business email and phone number may appear on your public profile. Leave them blank if you prefer in-app messages.</p>
+    <details class="quick-areas"{% if form.website_url.errors or form.instagram_url.errors %} open{% endif %}>
+      <summary>Website & Instagram (optional)</summary>
+      <div class="quick-field">{{ form.website_url.as_field_group }}</div>
+      <div class="quick-field">{{ form.instagram_url.as_field_group }}</div>
+    </details>
+    <div class="hero-actions"><button class="button button-primary" type="submit">Save contact details</button><a class="button button-secondary" href="{% url 'core:vendor-profile-manage' %}">Cancel</a></div>
+  </form>
+</section>
+{% else %}
 <section class="management-page"><p class="eyebrow">Vendor studio &middot; 1. Profile &rarr; 2. Preview &rarr; 3. Submit</p><h1>Your company profile</h1>
 <p>Status: {{ profile.get_approval_status_display }}. Identity or primary-category changes require another review.</p>
 {% if profile.review_feedback %}<p role="status">Admin feedback: {{ profile.review_feedback }}</p>{% endif %}
@@ -15,4 +38,5 @@
 <datalist id="vendor-cities">{% for city in cities %}<option value="{{ city.name }}">{% endfor %}</datalist>
 <button class="button button-primary" type="submit">Save & preview</button></form></section>
 {% include "core/vendor_editor_assets.html" %}
+{% endif %}
 {% endblock %}
