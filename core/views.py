@@ -106,6 +106,18 @@ def get_vendor_profile(user):
 @require_http_methods(["GET", "POST"])
 @transaction.atomic
 def vendor_profile_manage(request):
+    if request.GET.get("contact") == "1" or "contact_details" in request.POST:
+        from .forms import VendorContactForm
+        vendor_only(request)
+        profile = get_vendor_profile(request.user)
+        if request.method == "POST":
+            profile = VendorProfile.objects.select_for_update().get(pk=profile.pk)
+        form = VendorContactForm(request.POST if request.method == "POST" else None, instance=profile)
+        if request.method == "POST" and form.is_valid():
+            form.save()
+            messages.success(request, "Contact details saved.")
+            return redirect("core:vendor-profile-manage")
+        return render(request, "core/vendor_profile_manage.html", {"form": form, "profile": profile, "contact_only": True})
     if (request.method == "GET" and request.GET.get("guided") == "1") or "wizard" in request.POST:
         from .wizard_views import vendor_wizard
         return vendor_wizard(request)
