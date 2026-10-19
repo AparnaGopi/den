@@ -14,6 +14,7 @@ urlpatterns = [
     path("events/plan/", views.event_discovery, name="event-discovery"),
     path("vendors/", views.vendor_discovery, name="vendor-discovery"),
     path("events/<int:event_id>/matches/", views.event_matches, name="event-matches"),
+    path("events/<int:event_id>/delete/", views.event_search_delete, name="event-search-delete"),
     path("events/<int:event_id>/vendors/<int:vendor_id>/save/", views.event_vendor_save, name="event-vendor-save"),
     path("vendors/<slug:slug>/", views.approved_vendor_profile, name="vendor-profile"),
     path("vendor/profile/", views.vendor_profile_manage, name="vendor-profile-manage"),

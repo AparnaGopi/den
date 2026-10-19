@@ -230,3 +230,12 @@ footer p { margin: 0; }
 }
 .discovery-field > textarea { min-height: 120px; resize: vertical; }
 .discovery-form [hidden] { display: none !important; }
+
+/* Optional removal of a customer's saved vendor search. */
+.event-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.event-card-heading .approval-badge { margin-top: 0; }
+.event-search-delete { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); text-decoration: none; }
+.event-search-delete:hover { color: #9d3425; border-color: currentColor; }
+.event-search-delete:focus-visible { outline: 2px solid var(--terracotta); outline-offset: 3px; }
+.search-delete-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+@media (max-width: 760px) { .search-delete-actions .button { width: 100%; text-align: center; } }
