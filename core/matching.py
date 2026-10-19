@@ -153,6 +153,7 @@ def matching_vendors(event, filters, request):
         Prefetch("listings", queryset=active_listings, to_attr="discovery_listings"),
     )
     results = []
+    active_categories = list(Category.objects.filter(is_active=True))
     for profile in profiles:
         if event and event.city and not serves_location(profile, canonical_event_location(event.city)):
             continue
@@ -169,6 +170,8 @@ def matching_vendors(event, filters, request):
             if listing.category and not listing.category.is_active:
                 continue
             categories = {listing.category_id} if listing.category_id else profile_categories
+            if listing.is_profile_listing:
+                categories = {category.pk for category in active_categories if set(category.relevant_help_types).intersection(listing.help_types)} or categories
             if required and not categories.intersection(required):
                 continue
             if not provides_help(listing, event_help_types):

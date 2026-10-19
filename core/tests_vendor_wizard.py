@@ -25,7 +25,7 @@ class GuidedVendorTests(TestCase):
         self.api = APIClient()
         self.api.force_authenticate(self.user)
         self.api_url = reverse('api-v1:vendor-onboarding')
-        self.web_url = reverse('core:vendor-profile-manage')
+        self.web_url = reverse('core:vendor-profile-manage') + '?guided=1'
         self.category = Category.objects.get(slug='table-styling')
         self.area = ServiceLocation.objects.create(name='Guided Toronto')
         self.state = self.api.get(self.api_url).data

@@ -1,4 +1,5 @@
 from django.urls import path
+from .chat import ConversationListView, ContactVendorView, ConversationMessagesView, VendorChatPlanView, VendorVisitStatsView, VendorVisitView, QuickVendorProfileView
 from .views import (
     VendorWizardView, VendorOptionsView, VendorPortfolioView, EventReviewView, CategoryListView, EventArchiveView, EventCompleteView, EventDetailView,
     EventListCreateView, EventLocationListView, EventMatchesView, EventSavedVendorView, EventStepView, VendorBasicProfileView,
@@ -6,6 +7,13 @@ from .views import (
 )
 
 urlpatterns = [
+    path("messages/", ConversationListView.as_view(), name="message-list"),
+    path("messages/<int:pk>/", ConversationMessagesView.as_view(), name="message-thread"),
+    path("vendors/<int:vendor_id>/contact/", ContactVendorView.as_view(), name="contact-vendor"),
+    path("vendors/<int:vendor_id>/visit/", VendorVisitView.as_view(), name="vendor-visit"),
+    path("vendor/chat-plan/", VendorChatPlanView.as_view(), name="vendor-chat-plan"),
+    path("vendor/visit-stats/", VendorVisitStatsView.as_view(), name="vendor-visit-stats"),
+    path("vendor/quick-profile/", QuickVendorProfileView.as_view(), name="vendor-quick-profile"),
     path("vendor/onboarding/", VendorWizardView.as_view(), name="vendor-onboarding"),
     path("vendor/options/", VendorOptionsView.as_view(), name="vendor-options"),
     path("vendor/portfolio/", VendorPortfolioView.as_view(), name="vendor-portfolio"),

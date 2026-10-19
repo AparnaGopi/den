@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Messages | Den{% endblock %}
+{% block content %}
+<section class="management-page inbox-page"><p class="eyebrow">Your Den</p><h1>Messages</h1>
+{% if user.role == 'vendor' %}<p>Customer enquiries arrive here. <a href="{% url 'core:vendor-chat-plan' %}">View your chat allowance</a></p>{% else %}<p>Messages from your vendors, together in one place.</p>{% endif %}
+<div class="inbox-list">{% for chat in conversations %}<a class="inbox-item" href="{% url 'core:message-thread' chat.pk %}"><div><strong>{% if user.role == 'customer' %}{{ chat.vendor.business_name }}{% else %}{{ chat.customer.first_name|default:'Customer' }} #{{ chat.customer_id }}{% endif %}</strong><p>{% if chat.event %}{{ chat.event.get_event_type_display }}{% if chat.event.event_date %} · {{ chat.event.event_date|date:"M j, Y" }}{% endif %}{% else %}General enquiry{% endif %}</p></div><div>{% if chat.unread_count %}<span class="unread-badge">{{ chat.unread_count }} unread</span>{% endif %}<small>{{ chat.updated_at|date:"M j, g:i a" }}</small></div></a>{% empty %}<p>No messages yet. {% if user.role == 'customer' %}<a href="{% url 'core:vendor-discovery' %}">Find a vendor</a> and select Message vendor.{% else %}Customers can message you from your approved profile.{% endif %}</p>{% endfor %}</div></section>
+{% endblock %}

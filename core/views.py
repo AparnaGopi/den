@@ -64,7 +64,8 @@ def vendor_dashboard(request):
 	if request.user.role != User.Role.VENDOR:
 		return redirect("core:customer-dashboard")
 	profile = get_vendor_profile(request.user)
-	return render(request, "core/dashboard.html", {"dashboard_type": "Vendor", "vendor_profile": profile})
+	from .messaging import chat_plan, visit_stats
+	return render(request, "core/dashboard.html", {"dashboard_type": "Vendor", "vendor_profile": profile, "visit_stats": visit_stats(profile), "chat_plan": chat_plan(profile)})
 
 
 def approved_vendor_profile(request, slug):
@@ -76,7 +77,10 @@ def approved_vendor_profile(request, slug):
 		user__is_active=True,
 		user__role=User.Role.VENDOR,
 	)
-	return render(request, "core/vendor_profile.html", {"profile": profile, "reviews": profile.reviews.filter(is_verified=True)})
+	from .messaging import record_visit
+	record_visit(profile, request.user)
+	events = EventRequest.objects.filter(customer=request.user, status=EventRequest.Status.READY) if request.user.is_authenticated and request.user.role == User.Role.CUSTOMER else []
+	return render(request, "core/vendor_profile.html", {"profile": profile, "reviews": profile.reviews.filter(is_verified=True), "customer_events": events})
 
 
 def vendor_only(request):
@@ -102,9 +106,12 @@ def get_vendor_profile(user):
 @require_http_methods(["GET", "POST"])
 @transaction.atomic
 def vendor_profile_manage(request):
-    if (request.method == "GET" and request.GET.get("advanced") != "1") or "wizard" in request.POST:
+    if (request.method == "GET" and request.GET.get("guided") == "1") or "wizard" in request.POST:
         from .wizard_views import vendor_wizard
         return vendor_wizard(request)
+    if (request.method == "GET" and request.GET.get("advanced") != "1") or "quick_profile" in request.POST:
+        from .vendor_quick import vendor_quick_manage
+        return vendor_quick_manage(request)
     vendor_only(request)
     profile = get_vendor_profile(request.user)
     if request.method == "POST":

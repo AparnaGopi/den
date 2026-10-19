@@ -1,10 +1,15 @@
 from django.urls import path
 
 from . import views
+from . import chat_views
 
 app_name = "core"
 
 urlpatterns = [
+    path("messages/", chat_views.message_inbox, name="message-inbox"),
+    path("messages/<int:conversation_id>/", chat_views.message_thread, name="message-thread"),
+    path("vendors/<int:vendor_id>/contact/", chat_views.contact_vendor, name="contact-vendor"),
+    path("vendor/chat-plan/", chat_views.vendor_chat_plan, name="vendor-chat-plan"),
     path("vendor/profile/preview/", views.vendor_profile_preview, name="vendor-profile-preview"),
     path("vendor/profile/submit/", views.vendor_profile_submit, name="vendor-profile-submit"),
     path("vendor/profile/description/", views.vendor_description_create, name="vendor-description-create"),

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Category, Listing, PortfolioEntry, Review, VendorProfile, VendorTag, ServiceLocation, ListingImage
+from .models import Category, Listing, PortfolioEntry, Review, VendorProfile, VendorTag, ServiceLocation, ListingImage, VendorChatSubscription
 
 
 @admin.register(Category)
@@ -88,3 +88,11 @@ class ListingImageInline(admin.TabularInline):
 
 
 ListingAdmin.inlines = (ListingImageInline,)
+
+
+@admin.register(VendorChatSubscription)
+class VendorChatSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("vendor", "active_until", "requested_at")
+    search_fields = ("vendor__business_name",)
+    readonly_fields = ("requested_at", "updated_at")
+    autocomplete_fields = ("vendor",)

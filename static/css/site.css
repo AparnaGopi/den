@@ -232,6 +232,46 @@ footer p { margin: 0; }
 .discovery-form [hidden] { display: none !important; }
 
 /* Optional removal of a customer's saved vendor search. */
+/* Quick vendor profiles and conversations. */
+.quick-profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.quick-field { min-width: 0; display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; overflow-wrap: anywhere; }
+.quick-services { min-width: 0; padding: 0; border: 0; margin: 0 0 24px; }
+.quick-services legend { font-size: 1.3rem; }
+.service-chips > div { display: flex; flex-wrap: wrap; gap: 10px; }
+.service-chips > div > div { max-width: 100%; }
+.service-chips label { display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 24px; background: white; }
+.management-form .service-chips input { width: 18px; height: 18px; margin: 0; flex: 0 0 18px; }
+.quick-areas { margin: 24px 0; }
+.quick-areas summary { cursor: pointer; margin-bottom: 16px; }
+.quick-photo-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.quick-photo-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; }
+.quick-vendor-form [hidden] { display: none !important; }
+.vendor-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin: 28px 0; }
+.vendor-stat-grid > div { padding: 20px; background: var(--cream); border: 1px solid var(--line); border-radius: 12px; }
+.vendor-stat-grid strong { display: block; font-size: 1.8rem; }
+.vendor-stat-grid span { font: .85rem/1.5 Arial, sans-serif; }
+.inbox-list { display: grid; gap: 12px; }
+.inbox-item { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px; border: 1px solid var(--line); background: var(--cream); border-radius: 14px; color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.inbox-item small { display: block; margin-top: 8px; }
+.unread-badge { display: inline-block; background: var(--terracotta); color: white; padding: 5px 10px; border-radius: 20px; font: bold .8rem Arial, sans-serif; }
+.chat-page h1 { font-size: clamp(2rem, 5vw, 3.2rem); overflow-wrap: anywhere; }
+.chat-history { display: flex; flex-direction: column; gap: 16px; margin: 24px 0; }
+.chat-bubble { align-self: flex-start; max-width: 85%; padding: 16px 20px; background: white; border: 1px solid var(--line); border-radius: 16px; overflow-wrap: anywhere; }
+.chat-mine { align-self: flex-end; background: var(--cream); }
+.chat-bubble p { white-space: normal; margin: 8px 0; }
+.chat-composer { display: grid; gap: 12px; }
+.chat-composer textarea, .vendor-actions select { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; font: 1rem/1.5 Arial, sans-serif; }
+.chat-composer .button { justify-self: end; }
+.shared-event { padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.vendor-actions form { display: grid; gap: 12px; }
+@media (max-width: 760px) {
+  .quick-profile-grid { grid-template-columns: 1fr; }
+  .quick-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inbox-item { align-items: flex-start; flex-direction: column; }
+  .chat-bubble { max-width: 95%; }
+  .chat-composer .button { width: 100%; }
+  .nav-links { flex-wrap: wrap; }
+}
 .event-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .event-card-heading .approval-badge { margin-top: 0; }
 .event-search-delete { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); text-decoration: none; }
