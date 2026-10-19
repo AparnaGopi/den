@@ -4,6 +4,19 @@ from .models import Category, EventRequest, Listing, PortfolioEntry, VendorProfi
 from .event_rules import DATE_REQUIRED_MESSAGE, LOCATION_REQUIRED_MESSAGE, normalize_event_location, resolve_event_location, tomorrow_iso_date, toronto_today
 
 
+class VendorContactForm(forms.ModelForm):
+    class Meta:
+        model = VendorProfile
+        fields = ("contact_first_name", "contact_last_name", "business_email", "phone", "website_url", "instagram_url")
+        labels = {"contact_first_name": "First name", "contact_last_name": "Last name", "business_email": "Business email", "phone": "Phone number", "website_url": "Website (optional)", "instagram_url": "Instagram link (optional)"}
+        widgets = {"phone": forms.TextInput(attrs={"type": "tel", "autocomplete": "tel"}), "business_email": forms.EmailInput(attrs={"autocomplete": "email"})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.required = False
+
+
 class VendorProfileForm(forms.ModelForm):
     primary_category = forms.ModelChoiceField(
         queryset=Category.objects.none(),
