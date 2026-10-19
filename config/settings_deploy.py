@@ -24,13 +24,19 @@ SECRET_KEY = required("DJANGO_SECRET_KEY")
 if len(SECRET_KEY) < 50 or SECRET_KEY.startswith("django-insecure-"):
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be a new random secret of at least 50 characters.")
 
-ALLOWED_HOSTS = csv_setting("DJANGO_ALLOWED_HOSTS")
+# These are this deployment's public domains. Environment entries extend them,
+# so an older manually configured Render service cannot accidentally remove them.
+PUBLIC_HOSTNAMES = ("torontodecorden.com", "www.torontodecorden.com")
+ALLOWED_HOSTS = [*PUBLIC_HOSTNAMES, *csv_setting("DJANGO_ALLOWED_HOSTS")]
 render_hostname = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip()
 if render_hostname:
     ALLOWED_HOSTS.append(render_hostname)
 if not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS:
     raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must list the actual deployment hostnames.")
-CSRF_TRUSTED_ORIGINS = csv_setting("DJANGO_CSRF_TRUSTED_ORIGINS")
+CSRF_TRUSTED_ORIGINS = [
+    *(f"https://{host}" for host in PUBLIC_HOSTNAMES),
+    *csv_setting("DJANGO_CSRF_TRUSTED_ORIGINS"),
+]
 if render_hostname:
     CSRF_TRUSTED_ORIGINS.append(f"https://{render_hostname}")
 CORS_ALLOW_ALL_ORIGINS = False

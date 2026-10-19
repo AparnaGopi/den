@@ -5,6 +5,8 @@
 The included `render.yaml` declares a free Python web service and a free
 PostgreSQL database. It generates a secret and connects the database automatically.
 The assigned Render hostname is added to the allowed hosts and CSRF origins.
+The deployment settings always allow the root and `www` domains; host and CSRF
+environment variables extend that list, including on older manual services.
 The custom domain is `torontodecorden.com`; Render also adds its `www` counterpart.
 Automatic deployments are off, so later commits do not publish unexpectedly.
 
